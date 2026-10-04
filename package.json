@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/broker.test.mjs"
+    "test": "node --test test/broker.test.mjs",
+    "live": "node scripts/live.js"
   },
   "repository": {
     "type": "git",

@@ -7,6 +7,7 @@ Software di backtest manuale via web: dashboard per creare sessioni e grafico in
 ```bash
 npm install
 npm start          # http://localhost:3000  (PORT per cambiare porta)
+npm run live       # come start, ma si aggiorna da solo quando arrivano nuovi commit su GitHub
 npm test           # test del motore di ordini
 ```
 

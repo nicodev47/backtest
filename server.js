@@ -51,6 +51,9 @@ app.get('/api/candles/:symbol', (req, res) => {
   res.send(loadFile(a.dataFile).gz);
 });
 
+const BOOT_ID = String(Date.now());
+app.get('/api/version', (req, res) => res.json({ id: BOOT_ID, live: process.env.LIVE === '1' }));
+
 // ---------- Sessioni ----------
 const sessPath = id => path.join(SESS_DIR, id + '.json');
 const validId = id => /^[a-f0-9]{16}$/.test(id);
