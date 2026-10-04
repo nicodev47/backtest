@@ -201,7 +201,7 @@ export class Drawings {
     for (const e of this.getExternal ? this.getExternal() : []) {
       if (!e.draggable) continue;
       const y = this.y(e.price);
-      if (y != null && Math.abs(py - y) < 5) return e;
+      if (y != null && Math.abs(py - y) < 8) return e;
     }
     return null;
   }
@@ -452,7 +452,7 @@ export class Drawings {
     const y = this.y(e.price); if (y == null) return;
     c.save(); c.strokeStyle = e.color; c.lineWidth = 1; c.setLineDash(e.dash ? [6, 4] : []);
     c.beginPath(); c.moveTo(0, y); c.lineTo(s.w, y); c.stroke();
-    this.tag(c, e.label, 70, y, e.color, false, false);
+    this.tag(c, (e.draggable ? '⇕ ' : '') + e.label, 70, y, e.color, false, false);
     c.restore();
   }
 }

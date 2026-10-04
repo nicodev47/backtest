@@ -7,7 +7,7 @@ export const pad = n => String(n).padStart(2, '0');
 export function fmtDT(t, sec = false) {
   if (t == null) return '–';
   const d = new Date(t * 1000);
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${sec ? ':' + pad(d.getUTCSeconds()) : ''}`;
 }
 export function fmtDate(t) { const d = new Date(t * 1000); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; }
 export function toInputValue(t) { // timestamp -> value di <input type=datetime-local>

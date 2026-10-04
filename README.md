@@ -15,11 +15,11 @@ npm test           # test del motore di ordini
 **Dashboard** (`/`): crea una sessione scegliendo nome, asset, data/ora di partenza, capitale, commissioni e timeframe; elenca, riapre ed elimina le sessioni (con P&L, trade e win rate).
 
 **Sessione** (`/session/:id`):
-- Grafico (lightweight-charts, la libreria di TradingView) con timeframe 1m–1D, candele / Heikin Ashi / barre / linea / area, volume, scala log.
-- Replay: play/pausa (Spazio), +1 minuto (→), +1 barra (Maiusc+→), velocità fino a 300 candele/s, salto in avanti a data/ora o alla prossima apertura 09:30 ET. Il replay è solo in avanti.
+- Grafico a candele (lightweight-charts, la libreria di TradingView) con timeframe 1m–1D.
+- Replay: play/pausa (Spazio), +1 secondo (Alt+→), +1 minuto (→), +1 barra (Maiusc+→), velocità da 1 s/s a 100 min/s, salto in avanti a data/ora o alla prossima apertura 09:30 ET. Il replay è solo in avanti.
+- I dati sono a 1 minuto, quindi i **secondi sono simulati**: ogni candela viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista). OHLC della candela completa restano quelli reali.
 - Strumenti di disegno: trendline, semiretta, freccia, linee orizzontali/verticali, canale parallelo, Fibonacci, rettangolo, posizione long/short, testo, pennello, righello; selezione, spostamento, maniglie, colore/spessore/stile, duplica, blocca, magnete, annulla/ripeti (Ctrl+Z).
-- Indicatori: SMA, EMA, Bollinger, VWAP di sessione, RSI, MACD, ATR (parametri modificabili).
-- Trading simulato: ordini Market/Limit/Stop con SL/TP, size per contratti o per % di rischio, posizione netta, chiudi/inverti/SL a pareggio, SL/TP/ordini trascinabili sul grafico, storico, statistiche, equity curve, export CSV.
+- Trading simulato: ordini Market/Limit/Stop con SL/TP, size per contratti o per % di rischio, posizione netta, chiudi/inverti/SL a pareggio, SL/TP/ordini pendenti trascinabili sul grafico (SL/TP si possono aggiungere anche dopo l'apertura), storico, statistiche, equity curve, export CSV.
 - Salvataggio automatico su server (cursore, conto, disegni, indicatori).
 
 ## Dati

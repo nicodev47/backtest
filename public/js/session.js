@@ -1,7 +1,6 @@
-import { $, $$, fmt, money, fmtDT, toInputValue, fromInputValue, api, uid } from './util.js';
+import { $, $$, fmt, money, fmtDT, toInputValue, fromInputValue, api } from './util.js';
 import { initTheme } from './theme.js';
-import { TFS, tfSec, bucketOf, loadCandles, firstIndexAtOrAfter, buildBars, newBar, addTo, toHeikin } from './data.js';
-import { CATALOG, createIndicator } from './indicators.js';
+import { TFS, tfSec, bucketOf, loadCandles, firstIndexAtOrAfter, buildBars, newBar, addTo } from './data.js';
 import * as Broker from './broker.js';
 import { Drawings, TOOLS } from './drawings.js';
 
@@ -10,10 +9,9 @@ const sid = location.pathname.split('/').pop();
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 let S, asset, D, cfg, acc;
-let i = 0, tf = '5', bars = [], dirtyFrom = Infinity;
-let chartType = 'candles', showVol = true, logScale = false;
-let chart, main, volSeries, dr;
-let inds = []; // { spec, ind, series:[], pane, osc }
+// i = indice dell'ultimo minuto COMPLETO; sub = minuto in formazione rivelato fino al secondo `sub.s` (1..59)
+let i = 0, sub = null, tf = '5', bars = [], dirtyFrom = Infinity;
+let chart, main, dr;
 let playing = false, stopReq = false, silent = false, saveTimer = null, saveDirty = false;
 let extOrig = {};
 
@@ -32,18 +30,19 @@ let extOrig = {};
   acc = S.account && S.account.nextId ? S.account : Broker.newAccount();
   tf = S.timeframe && TFS.some(t => t.id === S.timeframe) ? S.timeframe : '5';
   const st = S.settings || {};
-  chartType = st.chartType || 'candles'; showVol = st.showVol !== false; logScale = !!st.logScale;
-  const target = S.cursorTime ?? S.startTime;
-  i = firstIndexAtOrAfter(D.t, target);
-  if (i >= D.t.length || D.t[i] > target) i = Math.max(0, i - 1);
+  if (S.cursorTime != null) {
+    i = firstIndexAtOrAfter(D.t, S.cursorTime);
+    if (i >= D.t.length || D.t[i] > S.cursorTime) i = Math.max(0, i - 1);
+    if (st.sub > 0 && i + 1 < D.t.length) resumeSub(st.sub | 0);
+  } else i = Math.max(0, firstIndexAtOrAfter(D.t, S.startTime) - 1); // si parte dall'istante di inizio, prima della sua candela
 
   document.title = `${S.name} – Backtest`;
   $('#sname').textContent = S.name; $('#sym').textContent = S.symbol;
   initTheme($('#themeBtn'), applyTheme);
   buildTfButtons(); buildTools(); buildChart(); bindUI(); restoreTicket(st.ticket);
-  S.indicators = S.indicators || [];
   loadAll(true);
   dr.setItems(S.drawings || []);
+  if (location.search.includes('debug')) window.__bt = { dr };
   requestAnimationFrame(frame);
 })();
 
@@ -62,10 +61,16 @@ function buildChart() {
     autoSize: true,
     crosshair: { mode: 0 },
     timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 10, barSpacing: 8 },
-    rightPriceScale: { scaleMargins: { top: 0.06, bottom: 0.14 } },
+    rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.08 } },
   });
   chart.subscribeCrosshairMove(p => updateLegend(p && p.time));
-  makeMain();
+  main = chart.addCandlestickSeries({ priceFormat: { type: 'price', precision: 2, minMove: asset.tickSize }, lastValueVisible: true, priceLineVisible: true,
+    // l'asse dei prezzi include sempre entry/SL/TP/ordini pendenti, così le linee trascinabili restano visibili
+    autoscaleInfoProvider: orig => {
+      const r = orig(), ps = acc ? getExternal().map(e => e.price) : [];
+      if (r && ps.length) { r.priceRange.minValue = Math.min(r.priceRange.minValue, ...ps); r.priceRange.maxValue = Math.max(r.priceRange.maxValue, ...ps); }
+      return r;
+    } });
   dr = new Drawings({
     chart, series: main, wrap: $('#chartWrap'), canvas: $('#ov'),
     getBars: () => bars, getTfSec: () => tfSec(tf), tick: cfg.tickSize, fmt: n => fmt(n, 2),
@@ -77,75 +82,14 @@ function buildChart() {
   applyTheme();
 }
 function styleMain() {
-  if (chartType === 'candles' || chartType === 'heikin')
-    main.applyOptions({ upColor: css('--up'), downColor: css('--down'), wickUpColor: css('--up'), wickDownColor: css('--down'), borderVisible: false });
-  else if (chartType === 'bars') main.applyOptions({ upColor: css('--up'), downColor: css('--down') });
-  else if (chartType === 'line') main.applyOptions({ color: css('--accent') });
-  else main.applyOptions({ lineColor: css('--accent'), topColor: css('--accent') + '66', bottomColor: css('--accent') + '05' });
-}
-function makeMain() {
-  if (main) chart.removeSeries(main);
-  const pf = { priceFormat: { type: 'price', precision: 2, minMove: asset.tickSize }, lastValueVisible: true, priceLineVisible: true };
-  main = chartType === 'bars' ? chart.addBarSeries(pf)
-    : chartType === 'line' ? chart.addLineSeries({ ...pf, lineWidth: 2 })
-    : chartType === 'area' ? chart.addAreaSeries({ ...pf, lineWidth: 2 })
-    : chart.addCandlestickSeries(pf);
-  styleMain();
-  if (dr) dr.series = main;
-  if (volSeries) { chart.removeSeries(volSeries); volSeries = null; }
-  if (showVol) volSeries = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false });
-}
-const mainPoint = (k, ha) => {
-  const b = chartType === 'heikin' ? ha[k] : bars[k];
-  return chartType === 'line' || chartType === 'area' ? { time: b.time, value: b.close } : b;
-};
-const volPoint = k => ({ time: bars[k].time, value: bars[k].volume, color: (bars[k].close >= bars[k].open ? css('--up') : css('--down')) + '66' });
-
-function applyLayout() {
-  const oscs = inds.filter(x => x.pane === 'osc'), n = oscs.length, h = 0.17, oscTotal = n * h;
-  chart.priceScale('right').applyOptions({ mode: logScale ? 1 : 0, scaleMargins: { top: 0.06, bottom: oscTotal + (showVol ? 0.15 : 0.05) } });
-  if (showVol) chart.priceScale('vol').applyOptions({ scaleMargins: { top: 1 - oscTotal - 0.12, bottom: oscTotal } });
-  oscs.forEach((o, k) => chart.priceScale('osc' + k).applyOptions({
-    scaleMargins: { top: 1 - (n - k) * h + 0.02, bottom: (n - k - 1) * h }, borderVisible: false,
-  }));
-}
-
-function buildIndicators() {
-  for (const x of inds) x.series.forEach(s => chart.removeSeries(s));
-  inds = []; let osc = 0;
-  for (const spec of S.indicators) {
-    const ind = createIndicator(spec), def = CATALOG[spec.type];
-    const x = { spec, ind, pane: def.pane, series: [] };
-    if (def.pane === 'osc') x.osc = osc++;
-    const scale = def.pane === 'osc' ? 'osc' + x.osc : 'right';
-    const defs = ind.lineDefs();
-    defs.forEach((ld, j) => {
-      const color = ld.color;
-      const s = ld.hist
-        ? chart.addHistogramSeries({ priceScaleId: scale, color, lastValueVisible: false, priceLineVisible: false })
-        : chart.addLineSeries({ priceScaleId: scale, color, lineWidth: 1, lastValueVisible: def.pane === 'osc', priceLineVisible: false, crosshairMarkerVisible: false });
-      x.series.push(s);
-    });
-    if (ind.levels) ind.levels().forEach(l => x.series[0].createPriceLine({ price: l, color: '#787b86', lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
-    inds.push(x);
-  }
-  applyLayout();
-}
-function setIndicatorData() {
-  for (const x of inds) {
-    x.ind.rebuild(bars);
-    x.series.forEach((s, j) => s.setData(bars.map((_, k) => x.ind.point(j, k, bars))));
-  }
+  main.applyOptions({ upColor: css('--up'), downColor: css('--down'), wickUpColor: css('--up'), wickDownColor: css('--down'), borderVisible: false });
 }
 
 // Ricostruisce tutte le barre fino al cursore e riempie il grafico.
 function loadAll(fit) {
   bars = buildBars(D, i, tf);
-  buildIndicators();
-  const ha = chartType === 'heikin' ? toHeikin(bars) : null;
-  main.setData(bars.map((_, k) => mainPoint(k, ha)));
-  if (volSeries) volSeries.setData(bars.map((_, k) => volPoint(k)));
-  setIndicatorData();
+  if (sub) { sub.base = baseBar(i + 1); renderForming(i + 1, partialRow(i + 1)); }
+  main.setData(bars);
   refreshMarkers();
   dirtyFrom = Infinity;
   if (fit) { const n = bars.length; chart.timeScale().setVisibleLogicalRange({ from: n - 140, to: n + 12 }); }
@@ -154,12 +98,7 @@ function loadAll(fit) {
 // Aggiorna in modo incrementale le barre toccate dagli ultimi step.
 function flush() {
   if (dirtyFrom === Infinity) return;
-  const ha = chartType === 'heikin' ? toHeikin(bars) : null;
-  for (let k = dirtyFrom; k < bars.length; k++) {
-    main.update(mainPoint(k, ha));
-    if (volSeries) volSeries.update(volPoint(k));
-    for (const x of inds) { x.ind.update(bars, k); x.series.forEach((s, j) => s.update(x.ind.point(j, k, bars))); }
-  }
+  for (let k = dirtyFrom; k < bars.length; k++) main.update(bars[k]);
   dirtyFrom = Infinity;
   updateLegend();
 }
@@ -185,30 +124,69 @@ function updateLegend(time) {
   if (time) { const f = bars.find(x => x.time === time); if (f) b = f; }
   const lg = $('#legend');
   const col = b && b.close >= b.open ? 'up' : 'down';
-  const ohlc = b ? `<div class="ohlc"><b>${S.symbol} · ${TFS.find(t => t.id === tf).label}</b> &nbsp;<span>O <b class="${col}">${fmt(b.open)}</b></span><span>H <b class="${col}">${fmt(b.high)}</b></span><span>L <b class="${col}">${fmt(b.low)}</b></span><span>C <b class="${col}">${fmt(b.close)}</b></span><span>Vol <b>${Math.round(b.volume)}</b></span></div>` : '';
-  const k = b ? bars.indexOf(b) : -1;
-  const il = inds.map((x, n) => {
-    const vals = x.ind.vals.map(v => v[k]).filter(v => v != null).map(v => fmt(v)).join(' ');
-    const col = x.ind.lineDefs()[0].color;
-    return `<div class="ind"><i style="background:${col}"></i>${indLabel(x.spec)} <span>${vals}</span><button data-ind="${n}" title="Impostazioni">⚙</button><button data-rm="${n}" title="Rimuovi">×</button></div>`;
-  }).join('');
-  const sig = ohlc + il;
+  const sig = b ? `<div class="ohlc"><b>${S.symbol} · ${TFS.find(t => t.id === tf).label}</b> &nbsp;<span>O <b class="${col}">${fmt(b.open)}</b></span><span>H <b class="${col}">${fmt(b.high)}</b></span><span>L <b class="${col}">${fmt(b.low)}</b></span><span>C <b class="${col}">${fmt(b.close)}</b></span></div>` : '';
   if (lg.dataset.sig !== sig) { lg.dataset.sig = sig; lg.innerHTML = sig; }
 }
-const indLabel = s => {
-  const p = { ...CATALOG[s.type].defaults, ...s.params };
-  return { sma: `SMA ${p.period}`, ema: `EMA ${p.period}`, bb: `BB ${p.period} ${p.mult}`, vwap: 'VWAP', rsi: `RSI ${p.period}`, macd: `MACD ${p.fast} ${p.slow} ${p.signal}`, atr: `ATR ${p.period}` }[s.type];
-};
 
 // ====================== Replay ======================
-function bar1() { return { t: D.t[i], o: D.o[i], h: D.h[i], l: D.l[i], c: D.c[i] }; }
-function advance() {
-  if (i >= D.t.length - 1) return false;
-  i++;
-  handleEvents(Broker.onBar(cfg, acc, bar1()));
-  const bt = bucketOf(D.t[i], tf), last = bars[bars.length - 1];
-  if (last && last.time === bt) { addTo(last, D, i); dirtyFrom = Math.min(dirtyFrom, bars.length - 1); }
-  else { bars.push(newBar(bt, D, i)); dirtyFrom = Math.min(dirtyFrom, bars.length - 1); }
+// I dati sono a 1 minuto: i secondi sono SIMULATI percorrendo la candela O -> L -> H -> C (rialzista)
+// oppure O -> H -> L -> C (ribassista), in 60 passi. Open, high, low e close della candela restano esatti.
+let pathCache = { k: -1, p: null };
+function secPath(k) {
+  if (pathCache.k === k) return pathCache.p;
+  const o = D.o[k], h = D.h[k], l = D.l[k], c = D.c[k];
+  const kp = c >= o ? [o, l, h, c] : [o, h, l, c], p = new Array(61);
+  for (let s = 0; s <= 60; s++) {
+    const x = s / 20, seg = Math.min(2, Math.floor(x)), f = x - seg;
+    p[s] = Math.round((kp[seg] + (kp[seg + 1] - kp[seg]) * f) / cfg.tickSize) * cfg.tickSize;
+  }
+  p[0] = o; p[60] = c;
+  pathCache = { k, p };
+  return p;
+}
+const curTime = () => (sub ? D.t[i + 1] + sub.s : D.t[i] + 60);
+const curPrice = () => (sub ? secPath(i + 1)[sub.s] : D.c[i]);
+function bar1() { const p = curPrice(); return { t: curTime(), o: p, h: p, l: p, c: p }; }
+function resumeSub(sec) {
+  const p = secPath(i + 1); let h = p[0], l = p[0];
+  for (let s = 1; s <= sec; s++) { h = Math.max(h, p[s]); l = Math.min(l, p[s]); }
+  sub = { s: sec, h, l, base: null };
+}
+function baseBar(k) { const last = bars[bars.length - 1]; return last && last.time === bucketOf(D.t[k], tf) ? { ...last } : null; }
+function partialRow(k) {
+  const p = secPath(k);
+  return { o: D.o[k], h: sub.h, l: sub.l, c: p[sub.s], v: D.v[k] * sub.s / 60 };
+}
+function renderForming(k, row) {
+  const bt = bucketOf(D.t[k], tf), last = bars[bars.length - 1], base = sub && sub.base;
+  const nb = base
+    ? { time: bt, open: base.open, high: Math.max(base.high, row.h), low: Math.min(base.low, row.l), close: row.c, volume: base.volume + row.v }
+    : { time: bt, open: row.o, high: row.h, low: row.l, close: row.c, volume: row.v };
+  if (last && last.time === bt) bars[bars.length - 1] = nb; else bars.push(nb);
+  dirtyFrom = Math.min(dirtyFrom, bars.length - 1);
+}
+function advanceSecond() {
+  const k = i + 1;
+  if (k >= D.t.length) return false;
+  const p = secPath(k), s = (sub ? sub.s : 0) + 1, prev = p[s - 1], cur = p[s];
+  if (!sub) sub = { s: 0, h: D.o[k], l: D.o[k], base: baseBar(k) };
+  handleEvents(Broker.onBar(cfg, acc, { t: D.t[k] + s, o: prev, h: Math.max(prev, cur), l: Math.min(prev, cur), c: cur }));
+  sub.s = s; sub.h = Math.max(sub.h, cur); sub.l = Math.min(sub.l, cur);
+  if (s === 60) {
+    renderForming(k, { o: D.o[k], h: D.h[k], l: D.l[k], c: D.c[k], v: D.v[k] });
+    i = k; sub = null;
+  } else renderForming(k, partialRow(k));
+  return true;
+}
+function advanceMinute() {
+  if (sub) { while (sub) if (!advanceSecond()) return false; return true; }
+  const k = i + 1;
+  if (k >= D.t.length) return false;
+  handleEvents(Broker.onBar(cfg, acc, { t: D.t[k] + 60, o: D.o[k], h: D.h[k], l: D.l[k], c: D.c[k] }));
+  i = k;
+  const bt = bucketOf(D.t[k], tf), last = bars[bars.length - 1];
+  if (last && last.time === bt) addTo(last, D, k); else bars.push(newBar(bt, D, k));
+  dirtyFrom = Math.min(dirtyFrom, bars.length - 1);
   return true;
 }
 let jumpSummary = null;
@@ -222,14 +200,13 @@ function handleEvents(ev) {
       toast(`${why}: ${t.side === 'long' ? 'Long' : 'Short'} ${t.qty} · ${money(t.pnl)}${t.r != null ? ` (${fmt(t.r)} R)` : ''}`, t.pnl >= 0 ? 'win' : 'loss');
       if (t.reason !== 'manual' && $('#pauseFill').checked) stopReq = true;
     } else if (e.type === 'open' || e.type === 'add') {
-      if (e.time === D.t[i] && playing) toast(`Ordine eseguito: ${e.side === 'buy' ? 'Buy' : 'Sell'} ${e.qty} @ ${fmt(e.price)}`);
-      if ($('#pauseFill').checked && e.time === D.t[i] && playing) stopReq = true;
+      if (playing) { toast(`Ordine eseguito: ${e.side === 'buy' ? 'Buy' : 'Sell'} ${e.qty} @ ${fmt(e.price)}`); if ($('#pauseFill').checked) stopReq = true; }
     }
   }
 }
 let needMarkers = false, needUI = true;
 function setPlaying(p) {
-  playing = p; stopReq = false;
+  playing = p; stopReq = false; accT = 0;
   $('#play').textContent = p ? '⏸ Pausa' : '▶ Play';
   if (!p) saveNow();
 }
@@ -237,12 +214,14 @@ let lastT = performance.now(), accT = 0, uiT = 0;
 function frame(now) {
   const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   if (playing) {
-    accT += dt * +$('#speed').value;
-    let n = Math.min(Math.floor(accT), 600); accT -= Math.floor(accT);
-    while (n-- > 0) {
-      if (!advance()) { setPlaying(false); toast('Fine dei dati disponibili'); break; }
-      if (stopReq) { setPlaying(false); break; }
-    }
+    const rate = +$('#speed').value; // secondi di mercato per secondo reale
+    accT += dt * rate;
+    const secs = Math.floor(accT);
+    let ok = true;
+    if (rate < 60) { accT -= secs; for (let n = Math.min(secs, 60); n > 0 && ok; n--) { ok = advanceSecond(); if (stopReq) break; } }
+    else { const mins = Math.floor(accT / 60); accT -= mins * 60; for (let n = Math.min(mins, 600); n > 0 && ok; n--) { ok = advanceMinute(); if (stopReq) break; } }
+    if (!ok) { setPlaying(false); toast('Fine dei dati disponibili'); }
+    else if (stopReq) setPlaying(false);
     markSave();
   }
   flush();
@@ -250,19 +229,21 @@ function frame(now) {
   if (needUI || playing && now - uiT > 200) { renderAll(); uiT = now; needUI = false; }
   requestAnimationFrame(frame);
 }
-function stepOne() { if (playing) setPlaying(false); if (advance()) { flush(); needUI = true; markSave(); } }
+function stepSec() { if (playing) setPlaying(false); if (advanceSecond()) { flush(); needUI = true; markSave(); } }
+function stepOne() { if (playing) setPlaying(false); if (advanceMinute()) { flush(); needUI = true; markSave(); } }
 function stepBarBtn() {
   if (playing) setPlaying(false);
-  if (!advance()) return;
-  while (i < D.t.length - 1 && bucketOf(D.t[i + 1], tf) === bars[bars.length - 1].time) { advance(); }
+  if (!advanceMinute()) return;
+  while (i < D.t.length - 1 && bucketOf(D.t[i + 1], tf) === bars[bars.length - 1].time) advanceMinute();
   flush(); needUI = true; markSave();
 }
-function jumpTo(idx) {
-  if (idx <= i) { toast('Puoi saltare solo in avanti nel tempo'); return; }
+function jumpTo(idx) { // idx = indice del minuto da cui ripartire (ora = D.t[idx])
+  if (D.t[idx] <= curTime()) { toast('Puoi saltare solo in avanti nel tempo'); return; }
   if (playing) setPlaying(false);
   jumpSummary = { n: 0 };
-  const stopAt = Math.min(idx, D.t.length - 1);
-  while (i < stopAt) { i++; handleEvents(Broker.onBar(cfg, acc, bar1())); }
+  const stopAt = Math.min(idx, D.t.length) - 1;
+  if (sub) advanceMinute();
+  while (i < stopAt) { const k = i + 1; handleEvents(Broker.onBar(cfg, acc, { t: D.t[k] + 60, o: D.o[k], h: D.h[k], l: D.l[k], c: D.c[k] })); i = k; }
   const n = jumpSummary.n; jumpSummary = null;
   loadAll(true); markSave();
   if (n) toast(`Durante il salto sono state chiuse ${n} operazioni`);
@@ -270,7 +251,7 @@ function jumpTo(idx) {
 
 // ====================== Ordini ======================
 function sizeInfo() {
-  const px = D.c[i], type = $('#otype .on').dataset.t;
+  const px = curPrice(), type = $('#otype .on').dataset.t;
   const price = type === 'market' ? px : +$('#oprice').value;
   const slp = +$('#osl').value || 0, tpp = +$('#otp').value || 0;
   const eq = Broker.equity(cfg, acc, px);
@@ -311,15 +292,22 @@ function reverse() {
   const side = p.dir === 1 ? 'sell' : 'buy', q = p.qty;
   handleEvents(Broker.placeOrder(cfg, acc, { type: 'market', side, qty: q * 2 }, bar1()).events);
 }
+function addLevel(key) { // crea SL (20 pt) o TP (40 pt) dal prezzo attuale: poi si trascina sul grafico
+  const p = acc.position; if (!p) return;
+  const px = curPrice(), v = key === 'sl' ? px - p.dir * 20 : px + p.dir * 40;
+  Broker.setLevels(acc, { [key]: Broker.snap(v, cfg.tickSize) });
+  if (p.sl != null) p.risk = Math.abs(p.entry - p.sl) * p.qty * cfg.pointValue;
+  needUI = true; markSave();
+}
 function breakeven() {
   const p = acc.position; if (!p) return;
-  if ((D.c[i] - p.entry) * p.dir <= 0) { toast('Il prezzo non è in profitto: impossibile spostare lo stop a pareggio'); return; }
+  if ((curPrice() - p.entry) * p.dir <= 0) { toast('Il prezzo non è in profitto: impossibile spostare lo stop a pareggio'); return; }
   Broker.setLevels(acc, { sl: Broker.snap(p.entry, cfg.tickSize) }); needUI = true; markSave();
 }
 
 // Linee operative sul grafico (trascinabili): posizione, SL, TP, ordini pendenti
 function getExternal() {
-  const out = [], px = D.c[i], p = acc.position;
+  const out = [], px = curPrice(), p = acc.position;
   if (p) {
     const pnl = p => (px - p.entry) * p.dir * p.qty * cfg.pointValue;
     out.push({ id: 'pos:entry', price: p.entry, color: css('--accent'), label: `${p.dir === 1 ? 'LONG' : 'SHORT'} ${p.qty}  ${money(pnl(p))}` });
@@ -344,11 +332,11 @@ function extTarget(id) {
 function extMove(id, price) {
   const { obj, key } = extTarget(id); if (!obj) return;
   if (!(id in extOrig)) extOrig[id] = obj[key];
-  obj[key] = price;
+  obj[key] = price; needUI = true;
 }
 function extCommit(id, price) {
   const { obj, key, order } = extTarget(id); if (!obj) { extOrig = {}; return; }
-  const px = D.c[i], orig = extOrig[id]; delete extOrig[id];
+  const px = curPrice(), orig = extOrig[id]; delete extOrig[id];
   const dir = order ? Broker.dirOf(order.side) : obj.dir;
   const ref = order ? order.price : px;
   let ok = true;
@@ -366,16 +354,16 @@ function extCommit(id, price) {
 // ====================== Pannelli ======================
 let posSig = '';
 function renderAll() {
-  const px = D.c[i], eq = Broker.equity(cfg, acc, px), op = Broker.openPnl(cfg, acc, px), rp = Broker.realizedPnl(acc);
+  const px = curPrice(), eq = Broker.equity(cfg, acc, px), op = Broker.openPnl(cfg, acc, px), rp = Broker.realizedPnl(acc);
   $('#eq').textContent = money(eq);
   $('#openPnl').textContent = money(op); $('#openPnl').className = op >= 0 ? 'up' : 'down';
   $('#realPnl').textContent = money(rp); $('#realPnl').className = rp >= 0 ? 'up' : 'down';
-  $('#px').textContent = fmt(px); $('#clock').textContent = fmtDT(D.t[i]) + ' ET';
+  $('#px').textContent = fmt(px); $('#clock').textContent = fmtDT(curTime(), true) + ' ET';
   updateTicket(); renderPosCard(); renderTabs();
 }
 function renderPosCard() {
   const p = acc.position, el = $('#posCard');
-  const sig = p ? `${p.dir}|${p.qty}|${p.entry}` : 'none';
+  const sig = p ? `${p.dir}|${p.qty}|${p.entry}|${p.sl != null}|${p.tp != null}` : 'none';
   if (sig !== el.dataset.sig) {
     el.dataset.sig = sig;
     if (!p) el.innerHTML = '<div class="muted">Nessuna posizione aperta.</div>';
@@ -387,11 +375,15 @@ function renderPosCard() {
         <label class="fld">Stop loss<input id="pcSl" type="number" step="${cfg.tickSize}" placeholder="—"></label>
         <label class="fld">Take profit<input id="pcTp" type="number" step="${cfg.tickSize}" placeholder="—"></label>
       </div>
-      <div class="btns"><button id="pcClose" class="btn danger">Chiudi</button><button id="pcRev" class="btn">Inverti</button><button id="pcBe" class="btn">SL a pareggio</button></div>`;
+      <div class="muted small" style="margin-top:6px">Trascina le linee SL/TP sul grafico per modificarle.</div>
+      <div class="btns"><button id="pcClose" class="btn danger">Chiudi</button><button id="pcRev" class="btn">Inverti</button><button id="pcBe" class="btn">SL a pareggio</button>
+      ${p.sl == null ? '<button id="pcAddSl" class="btn">+ Stop loss</button>' : ''}${p.tp == null ? '<button id="pcAddTp" class="btn">+ Take profit</button>' : ''}</div>`;
     if (p) {
       $('#pcClose').onclick = closeAll; $('#pcRev').onclick = reverse; $('#pcBe').onclick = breakeven;
+      if ($('#pcAddSl')) $('#pcAddSl').onclick = () => addLevel('sl');
+      if ($('#pcAddTp')) $('#pcAddTp').onclick = () => addLevel('tp');
       for (const [id, key] of [['#pcSl', 'sl'], ['#pcTp', 'tp']]) $(id).onchange = e => {
-        const v = e.target.value === '' ? null : Broker.snap(+e.target.value, cfg.tickSize), pos = acc.position, px = D.c[i];
+        const v = e.target.value === '' ? null : Broker.snap(+e.target.value, cfg.tickSize), pos = acc.position, px = curPrice();
         if (v != null && ((key === 'sl' && (px - v) * pos.dir <= 0) || (key === 'tp' && (v - px) * pos.dir <= 0))) { toast('Livello non valido rispetto al prezzo attuale'); needUI = true; el.dataset.sig = ''; return; }
         Broker.setLevels(acc, { [key]: v });
         if (pos.sl != null) pos.risk = Math.abs(pos.entry - pos.sl) * pos.qty * cfg.pointValue;
@@ -400,14 +392,14 @@ function renderPosCard() {
     }
   }
   if (p) {
-    const u = Broker.openPnl(cfg, acc, D.c[i]);
+    const u = Broker.openPnl(cfg, acc, curPrice());
     $('#pcPnl').textContent = money(u); $('#pcPnl').className = u >= 0 ? 'up' : 'down';
     for (const [id, v] of [['#pcSl', p.sl], ['#pcTp', p.tp]]) { const inp = $(id); if (document.activeElement !== inp) inp.value = v ?? ''; }
   }
 }
 let tabSig = {};
 function renderTabs() {
-  const px = D.c[i], p = acc.position;
+  const px = curPrice(), p = acc.position;
   const open = $('#tab-pos'), hist = $('#tab-hist'), st = $('#tab-stats');
   // Posizioni e ordini
   const s1 = JSON.stringify([p, acc.orders]);
@@ -470,12 +462,12 @@ function exportCsv() {
 // ====================== Salvataggio ======================
 function summaryObj() {
   const s = Broker.stats(cfg, acc);
-  return { n: s.n, total: s.total, winRate: s.winRate, equity: Broker.equity(cfg, acc, D.c[i]) };
+  return { n: s.n, total: s.total, winRate: s.winRate, equity: Broker.equity(cfg, acc, curPrice()) };
 }
 function stateObj() {
   return {
-    cursorTime: D.t[i], timeframe: tf, account: acc, drawings: S.drawings || [], indicators: S.indicators,
-    settings: { chartType, showVol, logScale, ticket: collectTicket() }, summary: summaryObj(),
+    cursorTime: D.t[i], timeframe: tf, account: acc, drawings: S.drawings || [],
+    settings: { sub: sub ? sub.s : 0, ticket: collectTicket() }, summary: summaryObj(),
   };
 }
 function markSave() {
@@ -583,32 +575,21 @@ function restoreTicket(t) {
 }
 
 function bindUI() {
-  $('#ctype').value = chartType;
-  $('#ctype').onchange = e => { chartType = e.target.value; makeMain(); loadAll(false); markSave(); };
-  $('#volBtn').classList.toggle('on', showVol); $('#logBtn').classList.toggle('on', logScale);
-  $('#volBtn').onclick = e => { showVol = !showVol; e.target.classList.toggle('on', showVol); makeMain(); loadAll(false); markSave(); };
-  $('#logBtn').onclick = e => { logScale = !logScale; e.target.classList.toggle('on', logScale); applyLayout(); markSave(); };
   $('#fitBtn').onclick = () => { chart.timeScale().setVisibleLogicalRange({ from: bars.length - 140, to: bars.length + 12 }); chart.priceScale('right').applyOptions({ autoScale: true }); };
-  $('#indBtn').onclick = openIndicators;
-  $('#legend').onclick = e => {
-    const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.rm !== undefined) { S.indicators.splice(+b.dataset.rm, 1); buildIndicators(); setIndicatorData(); updateLegend(); markSave(); }
-    else if (b.dataset.ind !== undefined) openIndicators();
-  };
   $('#sname').onclick = async () => {
     const n = prompt('Nome sessione:', S.name); if (!n || !n.trim()) return;
     S.name = n.trim(); $('#sname').textContent = S.name; document.title = `${S.name} – Backtest`;
     try { await api('/sessions/' + sid, { method: 'PUT', body: { name: S.name } }); } catch { /* ignore */ }
   };
   $('#play').onclick = () => setPlaying(!playing);
-  $('#step1').onclick = stepOne; $('#stepBar').onclick = stepBarBtn;
-  $('#jumpTime').value = toInputValue(D.t[i]);
+  $('#step1s').onclick = stepSec; $('#step1').onclick = stepOne; $('#stepBar').onclick = stepBarBtn;
+  $('#jumpTime').value = toInputValue(curTime());
   $('#jumpBtn').onclick = () => { const v = $('#jumpTime').value; if (v) jumpTo(firstIndexAtOrAfter(D.t, fromInputValue(v))); };
   $('#jumpOpen').onclick = () => {
     for (let k = i + 1; k < D.t.length; k++) if (D.t[k] % 86400 === 34200) { jumpTo(k); return; }
     toast('Nessuna altra apertura 09:30 nei dati');
   };
-  $$('#otype button').forEach(b => b.onclick = () => { $$('#otype button').forEach(x => x.classList.toggle('on', x === b)); if (b.dataset.t !== 'market' && !$('#oprice').value) $('#oprice').value = fmt(D.c[i], 2).replace(/\./g, '').replace(',', '.'); updateTicket(); markSave(); });
+  $$('#otype button').forEach(b => b.onclick = () => { $$('#otype button').forEach(x => x.classList.toggle('on', x === b)); if (b.dataset.t !== 'market' && !$('#oprice').value) $('#oprice').value = fmt(curPrice(), 2).replace(/\./g, '').replace(',', '.'); updateTicket(); markSave(); });
   $$('#sizeMode button').forEach(b => b.onclick = () => { $$('#sizeMode button').forEach(x => x.classList.toggle('on', x === b)); updateTicket(); markSave(); });
   ['oqty', 'orisk', 'osl', 'otp', 'oprice'].forEach(id => $('#' + id).addEventListener('input', () => { updateTicket(); markSave(); }));
   $('#buy').onclick = () => submitOrder('buy'); $('#sell').onclick = () => submitOrder('sell');
@@ -621,35 +602,7 @@ function bindUI() {
   addEventListener('keydown', e => {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.ctrlKey || e.metaKey) return;
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
-    else if (e.code === 'ArrowRight') { e.preventDefault(); e.shiftKey ? stepBarBtn() : stepOne(); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); e.shiftKey ? stepBarBtn() : e.altKey ? stepSec() : stepOne(); }
   });
-  document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0 && !b.closest('#modal')) b.blur(); });
+  document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
 }
-
-function openIndicators() {
-  const m = $('#modal'); m.hidden = false;
-  const render = () => {
-    m.innerHTML = `<div class="dlg"><h3>Indicatori</h3>
-      <div class="adds">${Object.entries(CATALOG).map(([k, v]) => `<button class="btn small" data-add="${k}">+ ${v.name}</button>`).join('')}</div>
-      ${S.indicators.length ? S.indicators.map((s, n) => {
-        const p = { ...CATALOG[s.type].defaults, ...s.params };
-        return `<div class="row"><b style="flex:1">${CATALOG[s.type].name}</b>${Object.keys(p).filter(k => k !== 'color').map(k => `<label>${k}<input type="number" step="any" min="1" data-p="${n}:${k}" value="${p[k]}"></label>`).join('')}<button class="btn small danger" data-del="${n}">Rimuovi</button></div>`;
-      }).join('') : '<p class="muted">Nessun indicatore attivo.</p>'}
-      <div style="text-align:right;margin-top:12px"><button class="btn primary" id="mClose">Chiudi</button></div></div>`;
-    m.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
-      const type = b.dataset.add, pal = ['#2962ff', '#ff9800', '#e91e63', '#9c27b0', '#00bcd4'];
-      S.indicators.push({ uid: uid(), type, params: type === 'sma' || type === 'ema' ? { color: pal[S.indicators.length % pal.length] } : {} });
-      apply(); render();
-    });
-    m.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { S.indicators.splice(+b.dataset.del, 1); apply(); render(); });
-    m.querySelectorAll('[data-p]').forEach(inp => inp.onchange = () => {
-      const [n, k] = inp.dataset.p.split(':'), v = +inp.value; if (!(v > 0)) return;
-      S.indicators[+n].params = { ...S.indicators[+n].params, [k]: v }; apply();
-    });
-    $('#mClose').onclick = () => { m.hidden = true; };
-  };
-  const apply = () => { buildIndicators(); setIndicatorData(); updateLegend(); markSave(); };
-  m.onclick = e => { if (e.target === m) m.hidden = true; };
-  render();
-}
-addEventListener('keydown', e => { if (e.key === 'Escape') { const m = $('#modal'); if (m) m.hidden = true; } });

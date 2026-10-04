@@ -14,14 +14,6 @@
   <span id="sym" class="badge"></span>
   <div class="sep"></div>
   <div id="tfs" class="seg"></div>
-  <div class="sep"></div>
-  <select id="ctype" title="Tipo di grafico">
-    <option value="candles">Candele</option><option value="heikin">Heikin Ashi</option><option value="bars">Barre</option>
-    <option value="line">Linea</option><option value="area">Area</option>
-  </select>
-  <button id="indBtn" class="btn">ƒx Indicatori</button>
-  <button id="volBtn" class="btn tgl on" title="Mostra/nascondi volume">Vol</button>
-  <button id="logBtn" class="btn tgl" title="Scala logaritmica">Log</button>
   <button id="fitBtn" class="btn" title="Adatta il grafico">⤢</button>
   <div class="grow"></div>
   <span id="saveState" class="muted small"></span>
@@ -31,11 +23,12 @@
 <div id="replay">
   <b class="rlabel">Replay</b>
   <button id="play" class="btn primary" title="Play/Pausa (Spazio)">▶ Play</button>
+  <button id="step1s" class="btn" title="Avanti di 1 secondo (Alt+→)">+1s</button>
   <button id="step1" class="btn" title="Avanti di 1 minuto (→)">+1m</button>
   <button id="stepBar" class="btn" title="Completa la barra del timeframe (Maiusc+→)">+1 barra</button>
-  <select id="speed" title="Velocità (candele 1m al secondo)">
-    <option value="1">1 / s</option><option value="2">2 / s</option><option value="5" selected>5 / s</option>
-    <option value="10">10 / s</option><option value="30">30 / s</option><option value="100">100 / s</option><option value="300">300 / s</option>
+  <select id="speed" title="Velocità di riproduzione">
+    <option value="1">1 s/s</option><option value="5">5 s/s</option><option value="10">10 s/s</option><option value="30">30 s/s</option>
+    <option value="60" selected>1 min/s</option><option value="300">5 min/s</option><option value="1200">20 min/s</option><option value="6000">100 min/s</option>
   </select>
   <div class="sep"></div>
   <input id="jumpTime" type="datetime-local" title="Salta a data/ora (solo in avanti)">
@@ -79,8 +72,8 @@
       <label class="fld" id="qtyRow">Quantità<input id="oqty" type="number" min="1" step="1" value="1"></label>
       <label class="fld" id="riskRow" hidden>Rischio per trade (%)<input id="orisk" type="number" min="0.05" step="0.05" value="1"></label>
       <div class="two">
-        <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—"></label>
-        <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—"></label>
+        <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—" value="20"></label>
+        <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—" value="40"></label>
       </div>
       <div class="info" id="oinfo"></div>
       <div class="two ord">
@@ -92,7 +85,6 @@
     <div class="pos" id="posCard"></div>
   </aside>
 </div>
-<div id="modal" hidden></div>
 <script src="/vendor/lightweight-charts.js"></script>
 <script type="module" src="/js/session.js"></script>
 </body>

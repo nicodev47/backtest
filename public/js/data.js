@@ -42,14 +42,3 @@ export function addTo(b, D, k) {
   if (D.l[k] < b.low) b.low = D.l[k];
   b.close = D.c[k]; b.volume += D.v[k];
 }
-// Heikin Ashi dalle barre normali
-export function toHeikin(bars) {
-  const out = []; let po = null, pc = null;
-  for (const b of bars) {
-    const c = (b.open + b.high + b.low + b.close) / 4;
-    const o = po == null ? (b.open + b.close) / 2 : (po + pc) / 2;
-    out.push({ time: b.time, open: o, high: Math.max(b.high, o, c), low: Math.min(b.low, o, c), close: c });
-    po = o; pc = c;
-  }
-  return out;
-}
