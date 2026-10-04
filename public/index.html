@@ -10,6 +10,8 @@
 <body class="dash">
 <header class="dash-head">
   <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 4 8-10"/><path d="M3 21h18"/></svg> Backtest</div>
+  <nav class="topnav"><a href="/" data-p="sess" class="on">Sessioni</a><a href="/analytics" data-p="an">Analytics</a><a href="/playbooks" data-p="pb">Playbook</a></nav>
+  <span class="grow"></span>
   <button id="themeBtn" class="btn ghost" title="Tema chiaro/scuro">◐</button>
 </header>
 <main class="dash-main">
@@ -24,6 +26,7 @@
         <label>Capitale iniziale ($)<input name="capital" type="number" value="50000" min="100" step="100" required></label>
         <label>Commissione $/contratto<input name="commission" type="number" value="0" min="0" step="0.01"></label>
       </div>
+      <label>Slippage (tick) su market e stop<input name="slippage" type="number" value="0" min="0" step="1"></label>
       <label>Timeframe iniziale<select name="timeframe">
         <option value="1" selected>1 minuto</option><option value="3">3 minuti</option><option value="5">5 minuti</option>
         <option value="15">15 minuti</option><option value="30">30 minuti</option><option value="60">1 ora</option><option value="240">4 ore</option><option value="D">1 giorno</option>

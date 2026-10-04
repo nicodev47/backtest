@@ -13,18 +13,29 @@ npm test           # test del motore di ordini
 
 ## Cosa c'è
 
-**Dashboard** (`/`): crea una sessione scegliendo nome, uno o più asset (fino a 4 grafici), data/ora di partenza, capitale, commissioni e timeframe; elenca, riapre ed elimina le sessioni (con P&L, trade e win rate).
+Tre aree, sul modello di FXReplay / TradingView Replay (replay e trading simulato) e TradeZella (journal e analisi):
 
-**Sessione** (`/session/:id`), interfaccia in stile FXReplay/TradingView, tema nero:
-- **Più grafici** (layout singolo, 2 affiancati, 2 sovrapposti, griglia 4): ognuno con il proprio simbolo e timeframe, tutti sullo stesso orologio di replay. Il grafico attivo ha il bordo blu; cursore sincronizzato tra i grafici (opzionale). Countdown della candela sull'ultimo prezzo.
-- **Replay** (barra flottante trascinabile): play/pausa (Spazio), velocità (slider), passo (1s, 5s, 15s, 30s, 1m, 5m, 15m, 1h) con ⏭ (→), Maiusc+→ completa la barra del timeframe attivo, interruttore "pausa su fill/SL/TP". Solo in avanti.
-- **Go To**: salto a data/ora, prossima apertura 09:30 ET, +1 ora, +1 giorno. **Journal**: note di sessione e per operazione. **Order**: pannello ordini flottante.
-- Barra a sinistra con gli strumenti di disegno (trendline, semiretta, freccia, linee orizzontali/verticali, canale, Fibonacci, rettangolo, posizione long/short, testo, pennello, righello, magnete, blocco, nascondi, sincronizza cursore); elenco oggetti (☰), annulla/ripeti, screenshot, impostazioni (stile candele monocromatico/classico).
-- **Trading simulato**: Buy/Sell dal footer (quantità, SL e TP in punti) oppure ordini Market/Limit/Stop dal pannello Order; size per contratti o per % di rischio. Un conto per simbolo; SL, TP e ordini pendenti si **trascinano sul grafico** (e si possono aggiungere dopo l'apertura). Pannello inferiore (⋮⋮⋮) con posizioni/ordini, storico e Analytics (statistiche, equity curve, export CSV).
-- **Prop Firm Rules**: obiettivo di profitto, perdita massima giornaliera, drawdown massimo (anche trailing), con avviso e pausa quando un limite viene raggiunto.
-- Salvataggio automatico su server (orologio, conti, disegni, layout, journal).
+### Dashboard (`/`)
+Crea una sessione (nome, uno o più asset fino a 4 grafici, partenza, capitale, commissioni, **slippage in tick**, timeframe). Per ogni sessione: P&L, trade, win rate, equity; **Apri, Duplica** (stesse impostazioni, senza operazioni), **Riavvia** (riparte dall'inizio), **Elimina**.
 
-**Tick e secondi.** Se per un asset sono stati importati i **tick** (vedi sotto), il replay è reale: a ogni scambio la candela aggiorna close, high, low e volume, l'orologio mostra i millisecondi, il passo "1 tick" avanza di uno scambio e gli ordini/SL/TP vengono eseguiti sul prezzo del tick (con lo slippage dei gap). Senza tick i **secondi sono simulati**: ogni candela a 1 minuto viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista) e il titolo del grafico non riporta "TICK".
+### Sessione (`/session/:id`) — replay e trading
+- **Più grafici** (1, 2 affiancati, 2 sovrapposti, griglia 4) con simbolo e timeframe indipendenti sullo stesso orologio di replay; cursore sincronizzato; countdown della candela; tema nero con candele monocromatiche o classiche.
+- **Replay**: barra flottante (play/pausa, velocità, passo da 1 tick / 1s fino a 1h, avanti, pausa su fill/SL/TP), Go To (data/ora, apertura 09:30, +1h, +1g). Solo in avanti. Con i **tick** importati la candela si muove a ogni scambio (millisecondi, ordini eseguiti sul prezzo del tick); senza tick i secondi sono simulati.
+- **Trading**: Market/Limit/Stop con SL, TP e **trailing stop**; size per contratti o per % di rischio; **chiusura parziale** (25/50/75% o quantità), inverti, SL a pareggio; SL, TP e ordini **trascinabili sul grafico**; **slippage** e commissioni; un conto per simbolo; footer con Buy/Sell rapidi.
+- **Clic destro sul grafico**: compra/vendi a quel prezzo (limit o stop in automatico), **alert di prezzo** (il replay si ferma quando scatta; anche dal 🔔 del footer), linea orizzontale, copia prezzo, annulla ordine/alert.
+- **Strumenti di disegno**: trendline, semiretta, freccia, orizzontale/verticale, canale, Fibonacci, rettangolo, posizione long/short, testo, pennello, righello; magnete, blocco, nascondi, elenco oggetti, annulla/ripeti.
+- **Scorciatoie da tastiera configurabili** (⚙ → Scorciatoie): play, passo, buy/sell, chiudi, inverti, BE, tool, timeframe, ecc.
+- **Prop Firm Rules**: obiettivo, perdita giornaliera, drawdown (anche trailing), con pausa e, a scelta, chiusura automatica di tutto alla violazione.
+- **Journal** (▤): note di sessione e, per ogni trade, **playbook con checklist delle regole, tag, errori, voto a stelle, note** e **screenshot automatici di ingresso e uscita** (disattivabili).
+- **Analytics** della sessione (stessa dashboard della pagina Analytics), pannello inferiore con posizioni/ordini/storico, export CSV.
+
+### Analytics (`/analytics`) — su tutte le sessioni
+KPI (P&L netto, win rate, profit factor, giorni in profitto, media win/loss, expectancy, R medio, max drawdown e recovery factor, serie, durata media, commissioni, MFE/MAE/efficienza), **punteggio 0-100** su 6 indicatori, curva del P&L e drawdown, P&L giornaliero, **calendario mensile**, performance per ora, giorno della settimana, durata, simbolo, playbook, tag, **errori**, tipo di uscita, distribuzione di R e P&L, win/loss, **trade log** ordinabile con dettaglio (screenshot, note, regole). Filtri per sessione, simbolo, lato, playbook, tag, errore e date.
+
+### Playbook (`/playbooks`)
+Le tue strategie con regole di ingresso, uscita e rischio: si collegano ai trade dal Journal e compaiono nelle analisi con le loro statistiche.
+
+**Tick e secondi.** Se per un asset sono stati importati i **tick** (vedi sotto), il replay è reale: a ogni scambio la candela aggiorna close, high, low e volume. Senza tick i **secondi sono simulati** (O→L→H→C se rialzista, O→H→L→C se ribassista) e il titolo del grafico non riporta "TICK".
 
 ## Dati
 

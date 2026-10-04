@@ -123,7 +123,7 @@ app.post('/api/sessions', (req, res) => {
   const s = {
     id: crypto.randomBytes(8).toString('hex'), schema: 2,
     name, symbol: symbols[0], symbols, startTime, cursorTime: null, capital,
-    commission: Math.max(0, Number(b.commission) || 0),
+    commission: Math.max(0, Number(b.commission) || 0), slippage: Math.max(0, Math.min(20, Math.floor(Number(b.slippage) || 0))),
     createdAt: now, updatedAt: now,
     layout: { type, panes: symbols.map((sym, k) => ({ id: 'p' + (k + 1), symbol: sym, tf, drawings: [] })) },
     accounts: {}, journal: { notes: '', tradeNotes: {} }, rules: { enabled: false }, settings: {}, summary: null,
@@ -154,10 +154,93 @@ const saveSession = (req, res) => {
 app.put('/api/sessions/:id', saveSession);
 app.post('/api/sessions/:id/save', saveSession); // per navigator.sendBeacon alla chiusura della pagina
 
+// Riavvia la sessione dall'inizio (azzera conti, journal e disegni); i dati e le impostazioni restano.
+app.post('/api/sessions/:id/reset', (req, res) => {
+  const s = validId(req.params.id) && readSession(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Sessione non trovata' });
+  s.cursorTime = null; s.accounts = {}; delete s.account; s.runtime = {}; s.summary = null;
+  s.journal = { notes: '', trades: {}, pos: {}, tradeNotes: {} };
+  if (s.layout) s.layout.panes.forEach(p => { p.drawings = []; });
+  s.updatedAt = Date.now();
+  fs.rmSync(path.join(DATA_DIR, 'shots', s.id), { recursive: true, force: true });
+  writeSession(s);
+  res.json({ ok: true });
+});
+
+// Nuova sessione con le stesse impostazioni (asset, partenza, capitale, costi), senza operazioni.
+app.post('/api/sessions/:id/duplicate', (req, res) => {
+  const s = validId(req.params.id) && readSession(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Sessione non trovata' });
+  const now = Date.now(), c = JSON.parse(JSON.stringify(s));
+  c.id = crypto.randomBytes(8).toString('hex'); c.name = (s.name + ' (copia)').slice(0, 80);
+  c.cursorTime = null; c.accounts = {}; delete c.account; c.runtime = {}; c.summary = null; c.createdAt = c.updatedAt = now;
+  c.journal = { notes: '', trades: {}, pos: {}, tradeNotes: {} };
+  if (c.layout) c.layout.panes.forEach(p => { p.drawings = []; });
+  writeSession(c);
+  res.status(201).json(summary(c));
+});
+
 app.delete('/api/sessions/:id', (req, res) => {
   if (!validId(req.params.id)) return res.status(404).json({ error: 'Sessione non trovata' });
   try { fs.unlinkSync(sessPath(req.params.id)); } catch { return res.status(404).json({ error: 'Sessione non trovata' }); }
+  fs.rmSync(path.join(DATA_DIR, 'shots', req.params.id), { recursive: true, force: true });
   res.json({ ok: true });
+});
+
+// ---------- Screenshot dei trade ----------
+const SHOT_DIR = path.join(DATA_DIR, 'shots');
+app.post('/api/sessions/:id/shots', express.raw({ type: ['image/jpeg', 'image/png', 'application/octet-stream'], limit: '3mb' }), (req, res) => {
+  const id = req.params.id, name = String(req.query.name || '');
+  if (!validId(id) || !readSession(id)) return res.status(404).json({ error: 'Sessione non trovata' });
+  if (!/^[\w-]{1,80}$/.test(name) || !Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Richiesta non valida' });
+  fs.mkdirSync(path.join(SHOT_DIR, id), { recursive: true });
+  fs.writeFileSync(path.join(SHOT_DIR, id, name + '.jpg'), req.body);
+  res.json({ url: `/api/shots/${id}/${name}.jpg` });
+});
+app.get('/api/shots/:id/:file', (req, res) => {
+  if (!validId(req.params.id) || !/^[\w-]{1,80}\.jpg$/.test(req.params.file)) return res.status(404).end();
+  const f = path.join(SHOT_DIR, req.params.id, req.params.file);
+  if (!fs.existsSync(f)) return res.status(404).end();
+  res.set('Cache-Control', 'public, max-age=86400').type('jpeg').sendFile(f);
+});
+
+// ---------- Playbook (strategie con regole) ----------
+const PB_FILE = path.join(DATA_DIR, 'playbooks.json');
+const cleanList = a => (Array.isArray(a) ? a : []).map(x => String(x).trim().slice(0, 200)).filter(Boolean).slice(0, 30);
+app.get('/api/playbooks', (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(PB_FILE, 'utf8'))); } catch { res.json([]); }
+});
+app.put('/api/playbooks', (req, res) => {
+  const list = (Array.isArray(req.body) ? req.body : []).slice(0, 100).map(p => ({
+    id: /^[\w-]{1,40}$/.test(p.id) ? p.id : crypto.randomBytes(5).toString('hex'),
+    name: String(p.name || '').trim().slice(0, 80) || 'Senza nome',
+    description: String(p.description || '').slice(0, 2000),
+    rules: { entry: cleanList(p.rules && p.rules.entry), exit: cleanList(p.rules && p.rules.exit), risk: cleanList(p.rules && p.rules.risk) },
+  }));
+  fs.writeFileSync(PB_FILE, JSON.stringify(list, null, 2));
+  res.json(list);
+});
+
+// ---------- Tutti i trade (per le analisi) ----------
+app.get('/api/trades', (req, res) => {
+  const out = [], sessions = [];
+  for (const f of fs.readdirSync(SESS_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    const s = readSession(f.slice(0, -5));
+    if (!s) continue;
+    sessions.push({ id: s.id, name: s.name, capital: s.capital, symbols: s.symbols || [s.symbol], startTime: s.startTime, updatedAt: s.updatedAt });
+    const accounts = s.accounts || (s.account ? { [s.symbol]: s.account } : {});
+    const jt = (s.journal && s.journal.trades) || {};
+    for (const [sym, acc] of Object.entries(accounts)) {
+      const asset = assets.find(a => a.symbol === sym);
+      for (const t of (acc && acc.trades) || []) {
+        const key = `${sym}:${t.id}`;
+        out.push({ sid: s.id, sname: s.name, key, symbol: sym, pv: asset ? asset.pointValue : 1, capital: s.capital, ...t, j: jt[key] || {} });
+      }
+    }
+  }
+  out.sort((a, b) => a.exitTime - b.exitTime);
+  res.json({ trades: out, sessions });
 });
 
 // ---------- Frontend ----------
@@ -165,6 +248,8 @@ app.use('/vendor/lightweight-charts.js',
   (req, res) => res.sendFile(path.join(__dirname, 'node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js')));
 app.use('/js/broker.js', express.static(path.join(__dirname, 'public/js/broker.js')));
 app.use(express.static(path.join(__dirname, 'public')));
+app.get('/analytics', (req, res) => res.sendFile(path.join(__dirname, 'public/analytics.html')));
+app.get('/playbooks', (req, res) => res.sendFile(path.join(__dirname, 'public/playbooks.html')));
 app.get('/session/:id', (req, res) => res.sendFile(path.join(__dirname, 'public/session.html')));
 
 if (require.main === module) {

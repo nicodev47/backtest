@@ -53,7 +53,7 @@ export class Feed {
   get len() { return this.D.t.length; }
   get partial() { return this.m && this.m.started ? this.m : null; }
   get ticksMode() { return !!(this.m && this.m.mode === 'tick'); }
-  busy() { return !!(this.acc.position || this.acc.orders.length); }
+  busy() { return !!(this.acc.position || this.acc.orders.length || (this.acc.alerts && this.acc.alerts.length)); }
   nextMinute() { const k = this.i + 1; return k < this.len ? this.D.t[k] : Infinity; }
   price() {
     if (this.m && this.m.started) return this.m.c;

@@ -46,6 +46,7 @@ export class Pane {
       onToolChange: t => app.toolChanged(t),
       getExternal: () => app.extFor(this), onExternalMove: (id, p) => app.extMove(this, id, p), onExternalCommit: (id, p) => app.extCommit(this, id, p),
       isActive: () => app.isActive(this), renderExtra: (c, s) => this.renderLastPrice(c, s),
+      onContext: info => app.contextMenu(this, info),
     });
     this.dr.setItems(conf.drawings || []);
     this.applyTheme();

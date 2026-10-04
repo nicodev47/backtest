@@ -50,6 +50,7 @@ export class Drawings {
     window.addEventListener('mousemove', e => this.onMove(e), true);
     window.addEventListener('mouseup', e => this.onUp(e), true);
     w.addEventListener('dblclick', e => this.onDbl(e), true);
+    w.addEventListener('contextmenu', e => this.onContextMenu(e), true);
     w.addEventListener('mouseleave', () => { this.mouse = null; });
     window.addEventListener('keydown', e => this.onKey(e));
     const loop = () => { this.render(); requestAnimationFrame(loop); };
@@ -313,6 +314,15 @@ export class Drawings {
         if (p != null) this.onExternalCommit(dr.id, Math.round(p / this.tick) * this.tick);
       } else if (dr.moved) this.commit();
     }
+  }
+  onContextMenu(e) { // clic destro: il chiamante mostra il menu (compra/vendi a prezzo, alert, ...)
+    const pt = this.local(e);
+    if (!this.inPlot(pt) || !this.onContext) return;
+    e.preventDefault(); e.stopPropagation();
+    const price = this.series.coordinateToPrice(pt.y), l = this.ts.coordinateToLogical(pt.x);
+    if (price == null) return;
+    const ext = this.findExternal(pt.x, pt.y);
+    this.onContext({ clientX: e.clientX, clientY: e.clientY, price, time: l != null ? this.l2t(l) : null, ext: ext ? ext.id : null });
   }
   onDbl(e) {
     if (this.tool) return;

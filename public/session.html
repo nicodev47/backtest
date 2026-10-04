@@ -63,6 +63,7 @@
           <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—" value="20"></label>
           <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—" value="40"></label>
         </div>
+        <label class="fld">Trailing stop (pt, opzionale)<input id="otrail" type="number" min="0" step="0.25" placeholder="—"></label>
         <div class="info" id="oinfo"></div>
         <div class="two ord">
           <button id="sell" class="sell"><span>Sell</span><b id="sellPx"></b></button>
@@ -106,6 +107,7 @@
   <label class="fq" title="Quantità">Qtà <input id="fQty" type="number" min="1" step="1" value="1"></label>
   <label class="fq" title="Stop loss in punti">SL <input id="fSl" type="number" min="0" step="0.25" placeholder="—"></label>
   <label class="fq" title="Take profit in punti">TP <input id="fTp" type="number" min="0" step="0.25" placeholder="—"></label>
+  <button id="alertBtn" class="btn ghost" title="Alert di prezzo (o clic destro sul grafico)">🔔</button>
   <span id="fErr" class="err"></span>
   <div class="grow"></div>
   <button id="panelBtn" class="btn ghost" title="Pannello operazioni">⋮⋮⋮</button>

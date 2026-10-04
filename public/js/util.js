@@ -23,3 +23,5 @@ export async function api(path, opts = {}) {
 }
 export const debounce = (fn, ms) => { let h; const f = (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; f.flush = () => { clearTimeout(h); fn(); }; return f; };
 export const uid = () => Math.random().toString(36).slice(2, 10);
+export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export const fmtDur = sec => { if (sec == null || !isFinite(sec)) return '–'; sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return h ? `${h}h ${pad(m)}m` : m ? `${m}m ${pad(s)}s` : `${s}s`; };
