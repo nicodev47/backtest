@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backtest – Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M3 17l5-6 4 4 8-10%27 fill=%27none%27 stroke=%27%232962ff%27 stroke-width=%272.5%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="dash">
+<header class="dash-head">
+  <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 4 8-10"/><path d="M3 21h18"/></svg> Backtest</div>
+  <button id="themeBtn" class="btn ghost" title="Tema chiaro/scuro">◐</button>
+</header>
+<main class="dash-main">
+  <section class="panel new">
+    <h2>Nuova sessione</h2>
+    <form id="form">
+      <label>Nome sessione<input name="name" required maxlength="80" placeholder="es. NQ novembre – ORB"></label>
+      <label>Asset<select name="symbol" id="symbol"></select></label>
+      <label>Data e ora di partenza (ET)<input name="start" id="start" type="datetime-local" required></label>
+      <small class="hint" id="range"></small>
+      <div class="row2">
+        <label>Capitale iniziale ($)<input name="capital" type="number" value="50000" min="100" step="100" required></label>
+        <label>Commissione $/contratto<input name="commission" type="number" value="0" min="0" step="0.01"></label>
+      </div>
+      <label>Timeframe iniziale<select name="timeframe">
+        <option value="1">1 minuto</option><option value="3">3 minuti</option><option value="5" selected>5 minuti</option>
+        <option value="15">15 minuti</option><option value="30">30 minuti</option><option value="60">1 ora</option><option value="240">4 ore</option><option value="D">1 giorno</option>
+      </select></label>
+      <div class="err" id="err"></div>
+      <button class="btn primary" type="submit">Avvia sessione</button>
+    </form>
+  </section>
+  <section class="panel list">
+    <h2>Le tue sessioni</h2>
+    <div id="sessions" class="sessions"><p class="muted">Caricamento…</p></div>
+  </section>
+</main>
+<script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

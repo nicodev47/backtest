@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backtest – Sessione</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M3 17l5-6 4 4 8-10%27 fill=%27none%27 stroke=%27%232962ff%27 stroke-width=%272.5%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="sess">
+<header id="top">
+  <a class="back" href="/" title="Torna alla dashboard">←</a>
+  <button id="sname" class="sname" title="Rinomina sessione"></button>
+  <span id="sym" class="badge"></span>
+  <div class="sep"></div>
+  <div id="tfs" class="seg"></div>
+  <div class="sep"></div>
+  <select id="ctype" title="Tipo di grafico">
+    <option value="candles">Candele</option><option value="heikin">Heikin Ashi</option><option value="bars">Barre</option>
+    <option value="line">Linea</option><option value="area">Area</option>
+  </select>
+  <button id="indBtn" class="btn">ƒx Indicatori</button>
+  <button id="volBtn" class="btn tgl on" title="Mostra/nascondi volume">Vol</button>
+  <button id="logBtn" class="btn tgl" title="Scala logaritmica">Log</button>
+  <button id="fitBtn" class="btn" title="Adatta il grafico">⤢</button>
+  <div class="grow"></div>
+  <span id="saveState" class="muted small"></span>
+  <button id="themeBtn" class="btn ghost" title="Tema">◐</button>
+</header>
+
+<div id="replay">
+  <b class="rlabel">Replay</b>
+  <button id="play" class="btn primary" title="Play/Pausa (Spazio)">▶ Play</button>
+  <button id="step1" class="btn" title="Avanti di 1 minuto (→)">+1m</button>
+  <button id="stepBar" class="btn" title="Completa la barra del timeframe (Maiusc+→)">+1 barra</button>
+  <select id="speed" title="Velocità (candele 1m al secondo)">
+    <option value="1">1 / s</option><option value="2">2 / s</option><option value="5" selected>5 / s</option>
+    <option value="10">10 / s</option><option value="30">30 / s</option><option value="100">100 / s</option><option value="300">300 / s</option>
+  </select>
+  <div class="sep"></div>
+  <input id="jumpTime" type="datetime-local" title="Salta a data/ora (solo in avanti)">
+  <button id="jumpBtn" class="btn">Vai</button>
+  <button id="jumpOpen" class="btn" title="Salta alla prossima apertura regolare 09:30 ET">⏭ 09:30</button>
+  <label class="chk"><input id="pauseFill" type="checkbox" checked> Pausa su fill/SL/TP</label>
+  <div class="grow"></div>
+  <span class="clock"><span id="px"></span> <b id="clock"></b></span>
+</div>
+
+<div class="body">
+  <nav id="tools"></nav>
+  <div class="center">
+    <div id="chartWrap">
+      <div id="chart"></div>
+      <canvas id="ov"></canvas>
+      <div id="legend"></div>
+      <div id="propbar" hidden></div>
+      <div id="toast"></div>
+    </div>
+    <div id="bottom">
+      <div class="tabs">
+        <button data-tab="pos" class="on">Posizioni e ordini</button><button data-tab="hist">Storico</button><button data-tab="stats">Statistiche</button>
+        <div class="grow"></div><button id="exportBtn" class="btn small">Esporta CSV</button>
+      </div>
+      <div class="tabbody" id="tab-pos"></div>
+      <div class="tabbody" id="tab-hist" hidden></div>
+      <div class="tabbody" id="tab-stats" hidden></div>
+    </div>
+  </div>
+  <aside id="ticket">
+    <div class="acct">
+      <div><span>Equity</span><b id="eq"></b></div>
+      <div><span>P&amp;L aperto</span><b id="openPnl"></b></div>
+      <div><span>P&amp;L realizzato</span><b id="realPnl"></b></div>
+    </div>
+    <div class="tkt">
+      <div class="seg full" id="otype"><button data-t="market" class="on">Market</button><button data-t="limit">Limit</button><button data-t="stop">Stop</button></div>
+      <label class="fld" id="priceRow" hidden>Prezzo<input id="oprice" type="number" step="0.25"></label>
+      <div class="seg full" id="sizeMode"><button data-m="qty" class="on">Contratti</button><button data-m="risk">Rischio %</button></div>
+      <label class="fld" id="qtyRow">Quantità<input id="oqty" type="number" min="1" step="1" value="1"></label>
+      <label class="fld" id="riskRow" hidden>Rischio per trade (%)<input id="orisk" type="number" min="0.05" step="0.05" value="1"></label>
+      <div class="two">
+        <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—"></label>
+        <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—"></label>
+      </div>
+      <div class="info" id="oinfo"></div>
+      <div class="two ord">
+        <button id="sell" class="sell"><span>Sell</span><b id="sellPx"></b></button>
+        <button id="buy" class="buy"><span>Buy</span><b id="buyPx"></b></button>
+      </div>
+      <div class="err" id="oerr"></div>
+    </div>
+    <div class="pos" id="posCard"></div>
+  </aside>
+</div>
+<div id="modal" hidden></div>
+<script src="/vendor/lightweight-charts.js"></script>
+<script type="module" src="/js/session.js"></script>
+</body>
+</html>

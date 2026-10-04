@@ -1,0 +1,4 @@
+[
+  { "symbol": "NQ",  "name": "E-mini Nasdaq-100 Futures",  "dataFile": "NQ_1m.csv", "pointValue": 20, "tickSize": 0.25, "currency": "USD", "type": "Futures" },
+  { "symbol": "MNQ", "name": "Micro E-mini Nasdaq-100 Futures", "dataFile": "NQ_1m.csv", "pointValue": 2,  "tickSize": 0.25, "currency": "USD", "type": "Futures" }
+]
