@@ -53,7 +53,7 @@ export class Pane {
   }
   title() {
     const a = this.feed.asset;
-    this.el.querySelector('.ptitle').textContent = `${a.name.toUpperCase()} · ${TFS.find(t => t.id === this.tf).label} · CME`;
+    this.el.querySelector('.ptitle').textContent = `${a.name.toUpperCase()} · ${TFS.find(t => t.id === this.tf).label} · CME${this.feed.store ? ' · TICK' : ''}`;
   }
   setActive(on) { this.el.classList.toggle('active', on); }
   applyTheme() {
@@ -76,7 +76,7 @@ export class Pane {
   rebuild(fit) {
     const f = this.feed;
     this.bars = buildBars(f.D, f.i, this.tf);
-    this.builtI = f.i; this.partialApplied = false; this.base = null;
+    this.builtI = f.i; this.partialApplied = false; this.base = null; this.ver = f.ver;
     this.applyPartial();
     this.series.setData(this.bars);
     this.dirtyFrom = Infinity;
@@ -89,10 +89,10 @@ export class Pane {
     if (!pt) return;
     const D = f.D, k = pt.k, bt = bucketOf(D.t[k], this.tf), last = this.bars[this.bars.length - 1];
     this.base = last && last.time === bt ? { ...last } : null;
-    const row = { o: D.o[k], h: pt.h, l: pt.l, c: f.secPath(k)[pt.s], v: D.v[k] * pt.s / 60 }, b = this.base;
+    const b = this.base;
     const nb = b
-      ? { time: bt, open: b.open, high: Math.max(b.high, row.h), low: Math.min(b.low, row.l), close: row.c, volume: b.volume + row.v }
-      : { time: bt, open: row.o, high: row.h, low: row.l, close: row.c, volume: row.v };
+      ? { time: bt, open: b.open, high: Math.max(b.high, pt.h), low: Math.min(b.low, pt.l), close: pt.c, volume: b.volume + pt.v }
+      : { time: bt, open: pt.o, high: pt.h, low: pt.l, close: pt.c, volume: pt.v };
     if (b) this.bars[this.bars.length - 1] = nb; else this.bars.push(nb);
     this.partialApplied = true;
     this.dirtyFrom = Math.min(this.dirtyFrom, this.bars.length - 1);
@@ -100,7 +100,8 @@ export class Pane {
   // Allinea le barre al feed dopo uno o più step del replay (incrementale).
   refresh() {
     const f = this.feed, D = f.D;
-    if (f.i === this.builtI && !f.partial && !this.partialApplied) return;
+    if (this.ver === f.ver) return;
+    this.ver = f.ver;
     if (this.partialApplied) { // toglie il minuto in formazione applicato prima
       if (this.base) this.bars[this.bars.length - 1] = this.base; else this.bars.pop();
       this.dirtyFrom = Math.min(this.dirtyFrom, Math.max(0, this.bars.length - (this.base ? 1 : 0)));
@@ -167,7 +168,7 @@ export class Pane {
     c.strokeStyle = col; c.globalAlpha = 0.6; c.setLineDash([1, 3]); c.lineWidth = 1;
     c.beginPath(); c.moveTo(0, y); c.lineTo(s.w, y); c.stroke();
     c.globalAlpha = 1; c.setLineDash([]);
-    const rem = Math.max(0, b.time + tfSec(this.tf) - this.app.T()), pad = (n) => String(n).padStart(2, '0');
+    const rem = Math.max(0, Math.ceil(b.time + tfSec(this.tf) - this.app.T())), pad = (n) => String(n).padStart(2, '0');
     const cd = rem >= 3600 ? `${Math.floor(rem / 3600)}:${pad(Math.floor(rem % 3600 / 60))}:${pad(rem % 60)}` : `${pad(Math.floor(rem / 60))}:${pad(rem % 60)}`;
     const w = s.fullW - s.w - 2;
     c.fillStyle = col; c.fillRect(s.w + 1, y - 17, w, 34);

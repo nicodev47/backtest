@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const [file, sym, name, pv, tick = '0.25', reuseArg] = process.argv.slice(2);
 if (!file || !sym || !name || !pv) { console.error('Uso: node scripts/import.js <file> <SIMBOLO> "<Nome>" <valore_punto> [tick]'); process.exit(1); }
-const dir = path.join(__dirname, '..', 'data');
+const dir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 let out = `${sym}_1m.csv`, rows = [];
 if (reuseArg && reuseArg.startsWith('reuse=')) {
   out = reuseArg.slice(6);
@@ -37,6 +37,10 @@ if (reuseArg && reuseArg.startsWith('reuse=')) {
 }
 const ap = path.join(dir, 'assets.json'), assets = JSON.parse(fs.readFileSync(ap, 'utf8'));
 const entry = { symbol: sym, name, dataFile: out, pointValue: Number(pv), tickSize: Number(tick), currency: 'USD', type: 'Futures' };
+if (reuseArg && reuseArg.startsWith('reuse=')) { // stessi dati di un altro simbolo: condivide anche i tick
+  const base = assets.find(a => a.dataFile === out && a.symbol !== sym);
+  if (base) entry.tickDir = base.tickDir || base.symbol;
+}
 const k = assets.findIndex(a => a.symbol === sym);
 if (k >= 0) assets[k] = entry; else assets.unshift(entry); // i nuovi asset compaiono per primi
 fs.writeFileSync(ap, JSON.stringify(assets, null, 2) + '\n');

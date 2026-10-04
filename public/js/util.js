@@ -4,10 +4,10 @@ export const fmt = (n, d = 2) => n == null || !isFinite(n) ? '–' : n.toLocaleS
 export const money = n => n == null || !isFinite(n) ? '–' : n.toLocaleString('it-IT', { style: 'currency', currency: 'USD' });
 export const pad = n => String(n).padStart(2, '0');
 // Gli orari dei dati sono ET trattati come UTC: si formattano sempre con i getter UTC.
-export function fmtDT(t, sec = false) {
+export function fmtDT(t, sec = false, ms = false) {
   if (t == null) return '–';
   const d = new Date(t * 1000);
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${sec ? ':' + pad(d.getUTCSeconds()) : ''}`;
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${sec ? ':' + pad(d.getUTCSeconds()) : ''}${sec && ms ? '.' + String(d.getUTCMilliseconds()).padStart(3, '0') : ''}`;
 }
 export function fmtDate(t) { const d = new Date(t * 1000); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; }
 export function toInputValue(t) { // timestamp -> value di <input type=datetime-local>

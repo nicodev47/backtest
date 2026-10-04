@@ -24,7 +24,7 @@ npm test           # test del motore di ordini
 - **Prop Firm Rules**: obiettivo di profitto, perdita massima giornaliera, drawdown massimo (anche trailing), con avviso e pausa quando un limite viene raggiunto.
 - Salvataggio automatico su server (orologio, conti, disegni, layout, journal).
 
-I **secondi sono simulati**: i dati sono a 1 minuto, quindi ogni candela viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista). Open/high/low/close della candela completa restano quelli reali.
+**Tick e secondi.** Se per un asset sono stati importati i **tick** (vedi sotto), il replay è reale: a ogni scambio la candela aggiorna close, high, low e volume, l'orologio mostra i millisecondi, il passo "1 tick" avanza di uno scambio e gli ordini/SL/TP vengono eseguiti sul prezzo del tick (con lo slippage dei gap). Senza tick i **secondi sono simulati**: ogni candela a 1 minuto viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista) e il titolo del grafico non riporta "TICK".
 
 ## Dati
 
@@ -34,9 +34,17 @@ I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 min
 
 I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET. Il giorno aggregato ha open/high/low identici al giornaliero ufficiale, ma close e volume possono differire (quello ufficiale usa il prezzo di settlement).
 
-Per aggiungere un asset (es. ES): `npm run import -- <file.csv|file.html> ES "E-mini S&P 500 Futures" 50 [tick] [reuse=<file già in data/>]`. Accetta un CSV con intestazione `time` (secondi unix) oppure `timestamp` ("AAAA-MM-GG HH:MM:SS"), `open,high,low,close,volume` (altre colonne ignorate), oppure un file "Replay…" HTML con `const D=[[t,o,h,l,c,v],…]`.
+Per aggiungere un asset a 1 minuto (es. ES): `npm run import -- <file.csv|file.html> ES "E-mini S&P 500 Futures" 50 [tick] [reuse=<file già in data/>]`. Accetta un CSV con intestazione `time` (secondi unix) oppure `timestamp` ("AAAA-MM-GG HH:MM:SS"), `open,high,low,close,volume` (altre colonne ignorate), oppure un file "Replay…" HTML con `const D=[[t,o,h,l,c,v],…]`.
+
+### Tick (per candele che si muovono realisticamente)
+
+```bash
+npm run import-ticks -- --sym=NQ26 --name="E-mini Nasdaq-100" --pv=20 [--tick=0.25] [--tz=auto|ET|UTC] [--contract=auto|NQZ6] tick1.csv.gz tick2.csv.gz ...
+npm run import -- x MNQ26 "Micro E-mini Nasdaq-100" 2 0.25 reuse=NQ26_1m.csv     # stessi tick per il micro (opzionale)
+```
+Crea `data/ticks/NQ26/` (un file binario compatto per giorno, **non versionato**) e ricava `data/NQ26_1m.csv` dai tick, così minuti e tick coincidono. I file vanno passati in ordine cronologico; si accettano `.csv` e `.csv.gz`. Colonne riconosciute: orario (`ts_event`/`timestamp`/`time`), `price`, `size`, opzionali `symbol` e `action` (si tengono solo i trade `T`). Orari ISO con Z/offset o epoch sono istanti UTC e vengono convertiti in ET (ora legale inclusa); orari senza fuso si assumono già ET (`--tz=UTC` per cambiare). Con più contratti nel file (rollover) `--contract=auto` usa per ogni giorno il più scambiato e ignora gli spread. Nel replay i giorni di tick vengono caricati a richiesta (se non sono ancora arrivati il replay attende, non simula).
 
 ## Regole di simulazione
 
-- Market: eseguito alla chiusura della candela 1m corrente. Limit/Stop: valutati sulle candele 1m successive (gap: fill all'apertura).
+- Con i tick: ogni ordine/SL/TP è valutato su ogni scambio e riempito al prezzo del tick. Senza tick: Market al prezzo corrente del passo simulato; Limit/Stop valutati passo per passo (gap: fill all'apertura del passo).
 - Se SL e TP cadono nella stessa candela 1m vale lo SL. Nessuno slippage; commissione per contratto configurabile.

@@ -42,3 +42,16 @@ export function addTo(b, D, k) {
   if (D.l[k] < b.low) b.low = D.l[k];
   b.close = D.c[k]; b.volume += D.v[k];
 }
+
+// ---- Tick (opzionali): file binari per giorno, serviti da /api/ticks ----
+export async function loadTickIndex(symbol) {
+  const r = await fetch('/api/ticks/' + symbol);
+  return r.ok ? r.json() : null;
+}
+// Formato: n doppi (tempo), n doppi (prezzo), n float32 (dimensione). Tempo in secondi con frazione (ET come UTC).
+export async function loadTickDay(symbol, d) {
+  const r = await fetch(`/api/ticks/${symbol}/${d}`);
+  if (!r.ok) throw new Error('Tick non disponibili per il giorno ' + d);
+  const buf = await r.arrayBuffer(), n = buf.byteLength / 20;
+  return { n, t: new Float64Array(buf, 0, n), p: new Float64Array(buf, n * 8, n), v: new Float32Array(buf, n * 16, n) };
+}

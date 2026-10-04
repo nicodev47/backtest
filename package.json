@@ -7,7 +7,8 @@
     "start": "node server.js",
     "test": "node --test test/*.test.mjs",
     "live": "node scripts/live.js",
-    "import": "node scripts/import.js"
+    "import": "node scripts/import.js",
+    "import-ticks": "node scripts/import-ticks.js"
   },
   "repository": {
     "type": "git",

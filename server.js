@@ -36,11 +36,31 @@ function loadFile(name) {
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
+// Tick opzionali: data/ticks/<tickDir|simbolo>/index.json + un file <giorno>.bin.gz per giorno
+const tickDirOf = a => path.join(DATA_DIR, 'ticks', a.tickDir || a.symbol);
+const hasTicks = a => fs.existsSync(path.join(tickDirOf(a), 'index.json'));
+
 app.get('/api/assets', (req, res) => {
   res.json(assets.map(a => {
     const f = loadFile(a.dataFile);
-    return { ...a, from: f.from, to: f.to, bars: f.count };
+    return { ...a, from: f.from, to: f.to, bars: f.count, ticks: hasTicks(a) };
   }));
+});
+
+app.get('/api/ticks/:symbol', (req, res) => {
+  const a = assets.find(x => x.symbol === req.params.symbol);
+  if (!a || !hasTicks(a)) return res.status(404).json({ error: 'Nessun tick per questo asset' });
+  res.set('Cache-Control', 'no-cache');
+  res.type('json').send(fs.readFileSync(path.join(tickDirOf(a), 'index.json')));
+});
+
+app.get('/api/ticks/:symbol/:d', (req, res) => {
+  const a = assets.find(x => x.symbol === req.params.symbol);
+  if (!a || !/^\d+$/.test(req.params.d)) return res.status(404).json({ error: 'Non trovato' });
+  const file = path.join(tickDirOf(a), req.params.d + '.bin.gz');
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Giorno non disponibile' });
+  res.set({ 'Content-Type': 'application/octet-stream', 'Content-Encoding': 'gzip', 'Cache-Control': 'public, max-age=86400' });
+  fs.createReadStream(file).pipe(res);
 });
 
 // Candele a 1 minuto in formato "a colonne" (compatto). Orari: ET trattato come UTC.

@@ -1,8 +1,8 @@
 import { $, $$, fmt, money, fmtDT, toInputValue, fromInputValue, api, uid } from './util.js';
 import { initTheme } from './theme.js';
-import { TFS, tfSec, loadCandles, firstIndexAtOrAfter, sessionKey } from './data.js';
+import { TFS, tfSec, loadCandles, loadTickIndex, loadTickDay, firstIndexAtOrAfter, sessionKey } from './data.js';
 import * as Broker from './broker.js';
-import { Feed, Replay } from './feed.js';
+import { Feed, Replay, TickStore } from './feed.js';
 import { Pane } from './pane.js';
 import { TOOLS } from './drawings.js';
 
@@ -12,7 +12,7 @@ const QUICK_TFS = ['1', '15', '60'];
 const LAYOUTS = { '1': ['Singolo', 1], '2h': ['2 affiancati', 2], '2v': ['2 sovrapposti', 2], '4': ['4 (griglia)', 4] };
 
 let S, assets, replay, active = null, panes = [];
-const feeds = new Map(), candleCache = new Map();
+const feeds = new Map(), candleCache = new Map(), tickCache = new Map();
 let playing = false, saveTimer = null, saveDirty = false, jumpSummary = null, needUI = true, needMarkers = false;
 let extOrig = {}, syncing = false, ruleBreached = false;
 
@@ -32,7 +32,9 @@ let extOrig = {}, syncing = false, ruleBreached = false;
   S.runtime = S.runtime || {};
   S.journal = S.journal || { notes: '', tradeNotes: {} };
   for (const sym of new Set(S.layout.panes.map(p => p.symbol))) makeFeed(sym);
-  replay = new Replay(feeds, initialTime());
+  const T0 = initialTime();
+  await Promise.all([...feeds.values()].map(f => f.preload(T0))); // tick del giorno di partenza
+  replay = new Replay(feeds, T0);
   replay.onEvents = handleEvents;
   document.title = `${S.name} – Backtest`;
   $('#sname').textContent = S.name;
@@ -62,11 +64,21 @@ function initialTime() {
 async function ensureData(sym) {
   if (candleCache.has(sym)) return;
   candleCache.set(sym, await loadCandles(sym));
+  const asset = assets.find(a => a.symbol === sym);
+  let store = null;
+  if (asset && asset.ticks) {
+    const index = await loadTickIndex(sym).catch(() => null);
+    if (index) {
+      store = new TickStore(sym, index, loadTickDay);
+      store.onError = () => toast(`Tick di ${sym} non disponibili per un giorno: uso i secondi simulati`, 'loss');
+    }
+  }
+  tickCache.set(sym, store);
 }
 function makeFeed(sym) {
   const asset = assets.find(a => a.symbol === sym);
   S.accounts = S.accounts || {};
-  const f = new Feed(asset, candleCache.get(sym), S.commission || 0, S.accounts[sym]);
+  const f = new Feed(asset, candleCache.get(sym), S.commission || 0, S.accounts[sym], tickCache.get(sym));
   S.accounts[sym] = f.acc;
   feeds.set(sym, f);
   return f;
@@ -74,7 +86,9 @@ function makeFeed(sym) {
 async function feedFor(sym) {
   if (feeds.has(sym)) return feeds.get(sym);
   await ensureData(sym);
-  const f = makeFeed(sym); replay.addFeed(f);
+  const f = makeFeed(sym);
+  await f.preload(replay.T);
+  replay.addFeed(f);
   return f;
 }
 
@@ -143,24 +157,26 @@ function handleEvents(feed, ev) {
     }
   }
 }
-const unitSec = () => +$('#unit').value;
+const unitVal = () => $('#unit').value; // 'tick' oppure secondi
+const advanceUnit = () => (unitVal() === 'tick' ? replay.stepEvent() : replay.advance(+unitVal()));
 function setPlaying(p) {
   playing = p; replay.stopReq = false; accT = 0;
   $('#play').textContent = p ? '⏸' : '▶';
   if (!p) saveNow();
 }
-let lastT = performance.now(), accT = 0, uiT = 0;
+let lastT = performance.now(), accT = 0, uiT = 0, prefetchT = 0;
 function frame(now) {
   const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   if (playing) {
     accT += dt * RATES[+$('#speed').value - 1];
     let n = Math.min(Math.floor(accT), 200); accT -= Math.floor(accT);
     let ok = true;
-    while (n-- > 0 && ok && !replay.stopReq) ok = replay.advance(unitSec());
+    while (n-- > 0 && ok && !replay.stopReq) { ok = advanceUnit(); if (replay.waiting) break; } // se attende i tick riprova al frame dopo
     if (!ok) { setPlaying(false); toast('Fine dei dati disponibili'); }
     else if (replay.stopReq) setPlaying(false);
     markSave(); needUI = needUI || now - uiT > 200;
   }
+  if (now - prefetchT > 1000) { prefetchT = now; replay.all().forEach(f => f.preload(replay.T)); }
   refreshAll();
   if (needMarkers) { panes.forEach(p => p.markers()); needMarkers = false; }
   if (needUI) { renderAll(); uiT = now; needUI = false; }
@@ -169,7 +185,8 @@ function frame(now) {
 function stepUnit() {
   if (playing) setPlaying(false);
   replay.stopReq = false;
-  if (!replay.advance(unitSec())) toast('Fine dei dati disponibili');
+  if (!advanceUnit() && !replay.waiting) toast('Fine dei dati disponibili');
+  if (replay.waiting) toast('Caricamento dei tick in corso… riprova tra un istante');
   needUI = true; markSave();
 }
 function stepBar() {
@@ -180,11 +197,11 @@ function stepBar() {
   replay.advance(rem > 0 ? rem : sec);
   needUI = true; markSave();
 }
-function jumpTo(target) {
+async function jumpTo(target) {
   if (target <= replay.T) { toast('Puoi saltare solo in avanti nel tempo'); return false; }
   if (playing) setPlaying(false);
   jumpSummary = { n: 0 };
-  replay.jumpTo(target);
+  await replay.jumpTo(target);
   const n = jumpSummary.n; jumpSummary = null;
   panes.forEach(p => p.rebuild(true)); needUI = true; markSave();
   if (n) toast(`Durante il salto sono state chiuse ${n} operazioni`);
@@ -208,7 +225,7 @@ function sizeInfo(f = act()) {
 }
 function feedBar(f) { const p = f.price(); return { t: replay.T, o: p, h: p, l: p, c: p }; }
 function updateTicket() {
-  const f = act(), s = sizeInfo(f), end = replay.nextMinute() === Infinity && !replay.all().some(x => x.partial);
+  const f = act(), s = sizeInfo(f), end = replay.nextMinute() === Infinity && !replay.all().some(x => x.m);
   $('#otitle').textContent = `Ordine · ${f.sym}`;
   $('#sellPx').textContent = $('#buyPx').textContent = fmt(s.px);
   $('#priceRow').hidden = s.type === 'market';
@@ -306,7 +323,8 @@ function renderAll() {
   if (!active) return;
   const eq = totalEquity();
   $('#balance').textContent = money(eq); $('#balance').className = 'balance ' + (eq >= S.capital ? 'up' : 'down');
-  $('#clock').textContent = fmtDT(replay.T, true) + ' ET';
+  const tk = replay.all().some(f => f.ticksMode);
+  $('#clock').textContent = fmtDT(replay.T, true, tk) + ' ET' + (replay.waiting ? ' · carico i tick…' : '');
   updateTicket(); renderPosCard(); renderTabs(); evalRules();
 }
 let cardSig = '';
@@ -625,15 +643,16 @@ function renderDrawer() {
 }
 
 function openGoTo() {
-  const min = toInputValue(replay.T + 60);
+  const min = toInputValue(Math.ceil(replay.T) + 60);
   openModal(`<h3>Go To</h3>
     <div class="row"><label>Data e ora (ET, solo in avanti)</label><input type="datetime-local" id="gDt" min="${min}" value="${min}"></div>
     <div class="list" style="margin-top:10px"><button class="btn" id="gOpen">Prossima apertura 09:30 ET</button><button class="btn" id="gHour">+1 ora</button><button class="btn" id="gDay">+1 giorno</button></div>
     <div style="text-align:right;margin-top:12px"><button class="btn primary" id="gGo">Vai</button></div>`, () => {
-    $('#gOpen').onclick = () => { if (jumpTo(nextOpen(replay.T))) closeModal(); };
-    $('#gHour').onclick = () => { if (jumpTo(replay.T + 3600)) closeModal(); };
-    $('#gDay').onclick = () => { if (jumpTo(replay.T + 86400)) closeModal(); };
-    $('#gGo').onclick = () => { const v = $('#gDt').value; if (v && jumpTo(fromInputValue(v))) closeModal(); };
+    const go = async t => { if (await jumpTo(t)) closeModal(); };
+    $('#gOpen').onclick = () => go(nextOpen(replay.T));
+    $('#gHour').onclick = () => go(Math.ceil(replay.T) + 3600);
+    $('#gDay').onclick = () => go(Math.ceil(replay.T) + 86400);
+    $('#gGo').onclick = () => { const v = $('#gDt').value; if (v) go(fromInputValue(v)); };
   });
 }
 function openSettings() {
@@ -650,7 +669,7 @@ function openSettings() {
 function takeShot() {
   const cv = active.chart.takeScreenshot(), ov = active.el.querySelector('.ov');
   cv.getContext('2d').drawImage(ov, 0, 0, cv.width, cv.height);
-  const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `${active.feed.sym}_${replay.T}.png`; a.click();
+  const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `${active.feed.sym}_${Math.floor(replay.T)}.png`; a.click();
 }
 
 function bindUI() {
@@ -724,7 +743,7 @@ function bindUI() {
     else if (e.key === 'Escape') closeModal();
   });
   document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0 && !b.closest('#modal')) b.blur(); });
-  if (location.search.includes('debug')) window.__bt = { get panes() { return panes; }, get replay() { return replay; }, feeds };
+  if (location.search.includes('debug')) window.__bt = { get panes() { return panes; }, get replay() { return replay; }, feeds, stepEvent: () => { replay.stepEvent(); needUI = true; } };
 }
 function showTab(t) {
   $$('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
