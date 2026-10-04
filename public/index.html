@@ -17,7 +17,7 @@
     <h2>Nuova sessione</h2>
     <form id="form">
       <label>Nome sessione<input name="name" required maxlength="80" placeholder="es. NQ novembre – ORB"></label>
-      <label>Asset<select name="symbol" id="symbol"></select></label>
+      <fieldset class="assets"><legend>Asset (fino a 4 grafici)</legend><div id="assets"></div></fieldset>
       <label>Data e ora di partenza (ET)<input name="start" id="start" type="datetime-local" required></label>
       <small class="hint" id="range"></small>
       <div class="row2">
@@ -25,7 +25,7 @@
         <label>Commissione $/contratto<input name="commission" type="number" value="0" min="0" step="0.01"></label>
       </div>
       <label>Timeframe iniziale<select name="timeframe">
-        <option value="1">1 minuto</option><option value="3">3 minuti</option><option value="5" selected>5 minuti</option>
+        <option value="1" selected>1 minuto</option><option value="3">3 minuti</option><option value="5">5 minuti</option>
         <option value="15">15 minuti</option><option value="30">30 minuti</option><option value="60">1 ora</option><option value="240">4 ore</option><option value="D">1 giorno</option>
       </select></label>
       <div class="err" id="err"></div>

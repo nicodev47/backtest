@@ -67,7 +67,7 @@ function writeSession(s) {
   fs.renameSync(tmp, sessPath(s.id));
 }
 const summary = s => ({
-  id: s.id, name: s.name, symbol: s.symbol, startTime: s.startTime, cursorTime: s.cursorTime,
+  id: s.id, name: s.name, symbol: s.symbol, symbols: s.symbols || [s.symbol], startTime: s.startTime, cursorTime: s.cursorTime,
   capital: s.capital, createdAt: s.createdAt, updatedAt: s.updatedAt, summary: s.summary || null,
 });
 
@@ -84,26 +84,29 @@ app.get('/api/sessions', (req, res) => {
 
 app.post('/api/sessions', (req, res) => {
   const b = req.body || {};
-  const asset = assets.find(a => a.symbol === b.symbol);
   const name = String(b.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Il nome della sessione è obbligatorio' });
-  if (!asset) return res.status(400).json({ error: 'Asset non valido' });
-  const f = loadFile(asset.dataFile);
+  const symbols = [...new Set((Array.isArray(b.symbols) ? b.symbols : [b.symbol]).filter(Boolean))].slice(0, 4);
+  const list = symbols.map(sym => assets.find(a => a.symbol === sym));
+  if (!symbols.length || list.some(a => !a)) return res.status(400).json({ error: 'Asset non valido' });
+  const files = list.map(a => loadFile(a.dataFile));
+  const from = Math.max(...files.map(f => f.from)), to = Math.min(...files.map(f => f.to));
   const startTime = Number(b.startTime);
-  if (!Number.isFinite(startTime) || startTime < f.from || startTime > f.to) {
-    return res.status(400).json({ error: 'Data di partenza fuori dall\'intervallo dei dati disponibili' });
+  if (!Number.isFinite(startTime) || startTime < from || startTime > to) {
+    return res.status(400).json({ error: 'Data di partenza fuori dall\'intervallo dei dati disponibili per gli asset scelti' });
   }
   const capital = Number(b.capital);
   if (!(capital >= 100)) return res.status(400).json({ error: 'Capitale iniziale non valido' });
+  const tf = b.timeframe || '1';
+  const type = symbols.length === 1 ? '1' : symbols.length === 2 ? '2h' : '4';
   const now = Date.now();
   const s = {
-    id: crypto.randomBytes(8).toString('hex'),
-    name, symbol: asset.symbol, startTime, cursorTime: null, capital,
+    id: crypto.randomBytes(8).toString('hex'), schema: 2,
+    name, symbol: symbols[0], symbols, startTime, cursorTime: null, capital,
     commission: Math.max(0, Number(b.commission) || 0),
-    timeframe: b.timeframe || '5',
     createdAt: now, updatedAt: now,
-    account: { trades: [], position: null, orders: [], nextId: 1 },
-    drawings: [], indicators: [], settings: {}, summary: null,
+    layout: { type, panes: symbols.map((sym, k) => ({ id: 'p' + (k + 1), symbol: sym, tf, drawings: [] })) },
+    accounts: {}, journal: { notes: '', tradeNotes: {} }, rules: { enabled: false }, settings: {}, summary: null,
   };
   writeSession(s);
   res.status(201).json(s);
@@ -120,7 +123,7 @@ const saveSession = (req, res) => {
   const s = validId(req.params.id) && readSession(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessione non trovata' });
   const b = req.body || {};
-  for (const k of ['cursorTime', 'timeframe', 'account', 'drawings', 'indicators', 'settings', 'summary']) {
+  for (const k of ['cursorTime', 'schema', 'layout', 'accounts', 'journal', 'rules', 'runtime', 'settings', 'summary']) {
     if (b[k] !== undefined) s[k] = b[k];
   }
   if (typeof b.name === 'string' && b.name.trim()) s.name = b.name.trim();

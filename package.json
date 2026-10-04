@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/broker.test.mjs",
-    "live": "node scripts/live.js"
+    "test": "node --test test/*.test.mjs",
+    "live": "node scripts/live.js",
+    "import": "node scripts/import.js"
   },
   "repository": {
     "type": "git",

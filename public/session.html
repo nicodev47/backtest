@@ -11,80 +11,110 @@
 <header id="top">
   <a class="back" href="/" title="Torna alla dashboard">←</a>
   <button id="sname" class="sname" title="Rinomina sessione"></button>
-  <span id="sym" class="badge"></span>
+  <div class="sep"></div>
+  <button id="symBtn" class="btn sym" title="Cambia simbolo del grafico attivo">⌕ <b id="symTxt"></b></button>
+  <button id="addPane" class="btn ghost" title="Aggiungi un grafico">⊕</button>
   <div class="sep"></div>
   <div id="tfs" class="seg"></div>
-  <button id="fitBtn" class="btn" title="Adatta il grafico">⤢</button>
+  <div class="sep"></div>
+  <button id="undoBtn" class="btn ghost" title="Annulla (Ctrl+Z)">↶</button>
+  <button id="redoBtn" class="btn ghost" title="Ripeti (Ctrl+Shift+Z)">↷</button>
+  <div class="sep"></div>
+  <button id="layoutBtn" class="btn" title="Disposizione dei grafici">▦ Layout ▾</button>
   <div class="grow"></div>
   <span id="saveState" class="muted small"></span>
-  <button id="themeBtn" class="btn ghost" title="Tema">◐</button>
+  <button id="shotBtn" class="btn ghost" title="Screenshot del grafico">📷</button>
+  <button id="setBtn" class="btn ghost" title="Impostazioni">⚙</button>
+  <button id="themeBtn" class="btn ghost" title="Tema chiaro/scuro">◐</button>
+  <button id="fsBtn" class="btn ghost" title="Schermo intero">⛶</button>
 </header>
 
-<div id="replay">
-  <b class="rlabel">Replay</b>
-  <button id="play" class="btn primary" title="Play/Pausa (Spazio)">▶ Play</button>
-  <button id="step1s" class="btn" title="Avanti di 1 secondo (Alt+→)">+1s</button>
-  <button id="step1" class="btn" title="Avanti di 1 minuto (→)">+1m</button>
-  <button id="stepBar" class="btn" title="Completa la barra del timeframe (Maiusc+→)">+1 barra</button>
-  <select id="speed" title="Velocità di riproduzione">
-    <option value="1">1 s/s</option><option value="5">5 s/s</option><option value="10">10 s/s</option><option value="30">30 s/s</option>
-    <option value="60" selected>1 min/s</option><option value="300">5 min/s</option><option value="1200">20 min/s</option><option value="6000">100 min/s</option>
-  </select>
-  <div class="sep"></div>
-  <input id="jumpTime" type="datetime-local" title="Salta a data/ora (solo in avanti)">
-  <button id="jumpBtn" class="btn">Vai</button>
-  <button id="jumpOpen" class="btn" title="Salta alla prossima apertura regolare 09:30 ET">⏭ 09:30</button>
-  <label class="chk"><input id="pauseFill" type="checkbox" checked> Pausa su fill/SL/TP</label>
-  <div class="grow"></div>
-  <span class="clock"><span id="px"></span> <b id="clock"></b></span>
-</div>
-
-<div class="body">
+<div class="main">
   <nav id="tools"></nav>
-  <div class="center">
-    <div id="chartWrap">
-      <div id="chart"></div>
-      <canvas id="ov"></canvas>
-      <div id="legend"></div>
-      <div id="propbar" hidden></div>
-      <div id="toast"></div>
+  <div id="stage">
+    <div id="panes" class="layout-1"></div>
+
+    <div id="floatReplay" class="float">
+      <span class="grip" title="Trascina">⠿</span>
+      <input id="speed" type="range" min="1" max="10" value="4" title="Velocità di riproduzione">
+      <button id="play" class="fbtn" title="Play/Pausa (Spazio)">▶</button>
+      <select id="unit" title="Avanzamento per passo">
+        <option value="1" selected>1s</option><option value="5">5s</option><option value="15">15s</option><option value="30">30s</option>
+        <option value="60">1m</option><option value="300">5m</option><option value="900">15m</option><option value="3600">1h</option>
+      </select>
+      <button id="next" class="fbtn" title="Avanti di un passo (→)">⏭</button>
+      <label class="tgl" title="Metti in pausa quando scatta un ordine, SL o TP"><input id="pauseFill" type="checkbox" checked><i></i></label>
     </div>
-    <div id="bottom">
+    <div id="floatGo" class="float">
+      <span class="grip" title="Trascina">✥</span>
+      <button data-w="goto">⤼ Go To</button><button data-w="order">⊕ Order</button><button data-w="journal">▤ Journal</button>
+      <button id="goClose" title="Chiudi">✕</button>
+    </div>
+
+    <div id="orderPanel" class="float panel-float" hidden>
+      <div class="ophead"><span class="grip">⠿</span><b id="otitle">Ordine</b><button id="oclose" class="btn ghost small">✕</button></div>
+      <div class="tkt">
+        <div class="seg full" id="otype"><button data-t="market" class="on">Market</button><button data-t="limit">Limit</button><button data-t="stop">Stop</button></div>
+        <label class="fld" id="priceRow" hidden>Prezzo<input id="oprice" type="number" step="0.25"></label>
+        <div class="seg full" id="sizeMode"><button data-m="qty" class="on">Contratti</button><button data-m="risk">Rischio %</button></div>
+        <label class="fld" id="qtyRow">Quantità<input id="oqty" type="number" min="1" step="1" value="1"></label>
+        <label class="fld" id="riskRow" hidden>Rischio per trade (%)<input id="orisk" type="number" min="0.05" step="0.05" value="1"></label>
+        <div class="two">
+          <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—" value="20"></label>
+          <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—" value="40"></label>
+        </div>
+        <div class="info" id="oinfo"></div>
+        <div class="two ord">
+          <button id="sell" class="sell"><span>Sell</span><b id="sellPx"></b></button>
+          <button id="buy" class="buy"><span>Buy</span><b id="buyPx"></b></button>
+        </div>
+        <div class="err" id="oerr"></div>
+      </div>
+      <div class="pos" id="posCard"></div>
+    </div>
+
+    <div id="propbar" hidden></div>
+    <div id="toast"></div>
+    <div id="rangebar">
+      <button data-days="1">1g</button><button data-days="5">5g</button><button data-days="30">1m</button>
+      <div class="grow"></div>
+      <span id="clock" class="clock"></span>
+      <button id="autoBtn" title="Adatta il grafico">auto</button>
+    </div>
+    <div id="bottom" hidden>
       <div class="tabs">
-        <button data-tab="pos" class="on">Posizioni e ordini</button><button data-tab="hist">Storico</button><button data-tab="stats">Statistiche</button>
-        <div class="grow"></div><button id="exportBtn" class="btn small">Esporta CSV</button>
+        <button data-tab="pos" class="on">Posizioni e ordini</button><button data-tab="hist">Storico</button><button data-tab="stats">Analytics</button>
+        <div class="grow"></div><button id="exportBtn" class="btn small">Esporta CSV</button><button id="bclose" class="btn ghost small">✕</button>
       </div>
       <div class="tabbody" id="tab-pos"></div>
       <div class="tabbody" id="tab-hist" hidden></div>
       <div class="tabbody" id="tab-stats" hidden></div>
     </div>
   </div>
-  <aside id="ticket">
-    <div class="acct">
-      <div><span>Equity</span><b id="eq"></b></div>
-      <div><span>P&amp;L aperto</span><b id="openPnl"></b></div>
-      <div><span>P&amp;L realizzato</span><b id="realPnl"></b></div>
-    </div>
-    <div class="tkt">
-      <div class="seg full" id="otype"><button data-t="market" class="on">Market</button><button data-t="limit">Limit</button><button data-t="stop">Stop</button></div>
-      <label class="fld" id="priceRow" hidden>Prezzo<input id="oprice" type="number" step="0.25"></label>
-      <div class="seg full" id="sizeMode"><button data-m="qty" class="on">Contratti</button><button data-m="risk">Rischio %</button></div>
-      <label class="fld" id="qtyRow">Quantità<input id="oqty" type="number" min="1" step="1" value="1"></label>
-      <label class="fld" id="riskRow" hidden>Rischio per trade (%)<input id="orisk" type="number" min="0.05" step="0.05" value="1"></label>
-      <div class="two">
-        <label class="fld">Stop loss (pt)<input id="osl" type="number" min="0" step="0.25" placeholder="—" value="20"></label>
-        <label class="fld">Take profit (pt)<input id="otp" type="number" min="0" step="0.25" placeholder="—" value="40"></label>
-      </div>
-      <div class="info" id="oinfo"></div>
-      <div class="two ord">
-        <button id="sell" class="sell"><span>Sell</span><b id="sellPx"></b></button>
-        <button id="buy" class="buy"><span>Buy</span><b id="buyPx"></b></button>
-      </div>
-      <div class="err" id="oerr"></div>
-    </div>
-    <div class="pos" id="posCard"></div>
-  </aside>
+  <nav id="widgets">
+    <button data-w="layers" title="Oggetti sul grafico">☰</button>
+    <div class="grow"></div>
+    <button data-w="order" title="Order"><span>⊕</span><small>Order</small></button>
+    <button data-w="goto" title="Go To"><span>⤼</span><small>Go To</small></button>
+    <button data-w="journal" title="Journal"><span>▤</span><small>Journal</small></button>
+  </nav>
+  <aside id="drawer" hidden></aside>
 </div>
+
+<footer id="foot">
+  <button id="fBuy" class="buy">Buy</button><button id="fSell" class="sell">Sell</button>
+  <label class="fq" title="Quantità">Qtà <input id="fQty" type="number" min="1" step="1" value="1"></label>
+  <label class="fq" title="Stop loss in punti">SL <input id="fSl" type="number" min="0" step="0.25" placeholder="—"></label>
+  <label class="fq" title="Take profit in punti">TP <input id="fTp" type="number" min="0" step="0.25" placeholder="—"></label>
+  <span id="fErr" class="err"></span>
+  <div class="grow"></div>
+  <button id="panelBtn" class="btn ghost" title="Pannello operazioni">⋮⋮⋮</button>
+  <div class="grow"></div>
+  <button id="analyticsBtn" class="btn ghost">▥ Analytics</button>
+  <button id="rulesBtn" class="btn ghost">▣ Prop Firm Rules <i id="rulesDot"></i></button>
+  <span id="balance" class="balance"></span>
+</footer>
+<div id="modal" hidden></div>
 <script src="/vendor/lightweight-charts.js"></script>
 <script type="module" src="/js/session.js"></script>
 <script src="/js/livereload.js"></script>

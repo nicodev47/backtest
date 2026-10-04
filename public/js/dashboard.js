@@ -1,19 +1,20 @@
-import { $, api, fmtDT, fromInputValue, toInputValue, money, fmt } from './util.js';
+import { $, api, fmtDT, fromInputValue, toInputValue, money } from './util.js';
 import { initTheme } from './theme.js';
 initTheme($('#themeBtn'));
 
 let assets = [];
-const sel = $('#symbol'), start = $('#start'), err = $('#err');
+const start = $('#start'), err = $('#err');
+const chosen = () => [...document.querySelectorAll('#assets input:checked')].map(i => i.value);
 
 function updateRange() {
-  const a = assets.find(x => x.symbol === sel.value);
-  if (!a) return;
-  start.min = toInputValue(a.from); start.max = toInputValue(a.to);
-  $('#range').textContent = `Dati disponibili: ${fmtDT(a.from)} → ${fmtDT(a.to)} ET (${a.bars.toLocaleString('it-IT')} candele a 1 minuto)`;
+  const sel = assets.filter(a => chosen().includes(a.symbol));
+  if (!sel.length) { $('#range').textContent = 'Seleziona almeno un asset.'; return; }
+  const from = Math.max(...sel.map(a => a.from)), to = Math.min(...sel.map(a => a.to));
+  start.min = toInputValue(from); start.max = toInputValue(to);
+  $('#range').textContent = `Dati disponibili: ${fmtDT(from)} → ${fmtDT(to)} ET (${sel[0].bars.toLocaleString('it-IT')} candele a 1 minuto)`;
   const cur = start.value && fromInputValue(start.value);
-  if (!cur || cur < a.from || cur > a.to) {
-    // default: prima apertura regolare (09:30 ET) dopo l'inizio dei dati
-    const d = new Date(a.from * 1000); d.setUTCDate(d.getUTCDate() + 1); d.setUTCHours(9, 30, 0, 0);
+  if (!cur || cur < from || cur > to) {
+    const d = new Date(from * 1000); d.setUTCDate(d.getUTCDate() + 1); d.setUTCHours(9, 30, 0, 0); // prima apertura regolare utile
     start.value = toInputValue(Math.floor(d / 1000));
   }
 }
@@ -24,8 +25,7 @@ async function loadSessions() {
   if (!list.length) { box.innerHTML = '<p class="muted">Nessuna sessione. Creane una a sinistra per iniziare.</p>'; return; }
   box.innerHTML = '';
   for (const s of list) {
-    const sm = s.summary || {};
-    const pnl = sm.total ?? 0;
+    const sm = s.summary || {}, pnl = sm.total ?? 0;
     const el = document.createElement('div');
     el.className = 'card';
     el.innerHTML = `
@@ -39,7 +39,7 @@ async function loadSessions() {
       </div>
       <div class="card-actions"><a class="btn primary" href="/session/${s.id}">Apri</a><button class="btn danger del">Elimina</button></div>`;
     el.querySelector('b').textContent = s.name;
-    el.querySelector('.tag').textContent = s.symbol;
+    el.querySelector('.tag').textContent = (s.symbols || [s.symbol]).join(' + ');
     el.querySelector('.cur').textContent = `Partenza ${fmtDT(s.startTime)} · Ora replay ${fmtDT(s.cursorTime ?? s.startTime)} ET`;
     el.querySelector('.del').onclick = async () => {
       if (!confirm(`Eliminare la sessione "${s.name}"? L'operazione non è reversibile.`)) return;
@@ -51,10 +51,12 @@ async function loadSessions() {
 
 $('#form').addEventListener('submit', async e => {
   e.preventDefault(); err.textContent = '';
-  const f = new FormData(e.target);
+  const f = new FormData(e.target), symbols = chosen();
+  if (!symbols.length) { err.textContent = 'Seleziona almeno un asset'; return; }
+  if (symbols.length > 4) { err.textContent = 'Massimo 4 asset'; return; }
   try {
     const s = await api('/sessions', { method: 'POST', body: {
-      name: f.get('name'), symbol: f.get('symbol'), startTime: fromInputValue(f.get('start')),
+      name: f.get('name'), symbols, startTime: fromInputValue(f.get('start')),
       capital: +f.get('capital'), commission: +f.get('commission'), timeframe: f.get('timeframe'),
     } });
     location.href = '/session/' + s.id;
@@ -63,8 +65,8 @@ $('#form').addEventListener('submit', async e => {
 
 (async () => {
   assets = await api('/assets');
-  sel.innerHTML = assets.map(a => `<option value="${a.symbol}">${a.symbol} – ${a.name}</option>`).join('');
-  sel.onchange = () => { start.value = ''; updateRange(); };
+  $('#assets').innerHTML = assets.map((a, k) => `<label class="chkrow"><input type="checkbox" value="${a.symbol}" ${k === 0 ? 'checked' : ''}> <b>${a.symbol}</b> <span class="muted">${a.name}</span></label>`).join('');
+  $('#assets').addEventListener('change', updateRange);
   updateRange();
   loadSessions();
 })();

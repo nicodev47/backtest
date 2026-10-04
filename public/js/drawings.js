@@ -324,6 +324,7 @@ export class Drawings {
   }
   onKey(e) {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    if (this.isActive && !this.isActive()) return; // più pannelli: reagisce solo quello attivo
     if (e.key === 'Escape') { if (this.draft || this.meas) { this.draft = null; this.meas = null; } else if (this.tool) this.setTool(null); else this.select(null); }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && this.sel) { e.preventDefault(); const d = this.selected(); if (d && !d.locked) this.remove(d.id); }
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? this.redoLast() : this.undoLast(); }
@@ -338,7 +339,7 @@ export class Drawings {
     const c = this.ctx;
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
     const ext = this.getExternal ? this.getExternal() : [];
-    if (this.hidden && !ext.length) return;
+    if (this.hidden && !ext.length && !this.renderExtra) return;
     const s = this.plotSize();
     c.save(); c.beginPath(); c.rect(0, 0, s.w, s.h); c.clip();
     c.font = '11px system-ui, sans-serif';
@@ -349,6 +350,7 @@ export class Drawings {
     }
     for (const e of ext) this.drawExternal(c, e, s);
     c.restore();
+    if (this.renderExtra) this.renderExtra(c, s);
   }
   style(c, d) {
     c.strokeStyle = c.fillStyle = d.color; c.lineWidth = d.width || 1;

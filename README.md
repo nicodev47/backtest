@@ -13,19 +13,22 @@ npm test           # test del motore di ordini
 
 ## Cosa c'è
 
-**Dashboard** (`/`): crea una sessione scegliendo nome, asset, data/ora di partenza, capitale, commissioni e timeframe; elenca, riapre ed elimina le sessioni (con P&L, trade e win rate).
+**Dashboard** (`/`): crea una sessione scegliendo nome, uno o più asset (fino a 4 grafici), data/ora di partenza, capitale, commissioni e timeframe; elenca, riapre ed elimina le sessioni (con P&L, trade e win rate).
 
-**Sessione** (`/session/:id`):
-- Grafico a candele (lightweight-charts, la libreria di TradingView) con timeframe 1m–1D.
-- Replay: play/pausa (Spazio), +1 secondo (Alt+→), +1 minuto (→), +1 barra (Maiusc+→), velocità da 1 s/s a 100 min/s, salto in avanti a data/ora o alla prossima apertura 09:30 ET. Il replay è solo in avanti.
-- I dati sono a 1 minuto, quindi i **secondi sono simulati**: ogni candela viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista). OHLC della candela completa restano quelli reali.
-- Strumenti di disegno: trendline, semiretta, freccia, linee orizzontali/verticali, canale parallelo, Fibonacci, rettangolo, posizione long/short, testo, pennello, righello; selezione, spostamento, maniglie, colore/spessore/stile, duplica, blocca, magnete, annulla/ripeti (Ctrl+Z).
-- Trading simulato: ordini Market/Limit/Stop con SL/TP, size per contratti o per % di rischio, posizione netta, chiudi/inverti/SL a pareggio, SL/TP/ordini pendenti trascinabili sul grafico (SL/TP si possono aggiungere anche dopo l'apertura), storico, statistiche, equity curve, export CSV.
-- Salvataggio automatico su server (cursore, conto, disegni, indicatori).
+**Sessione** (`/session/:id`), interfaccia in stile FXReplay/TradingView, tema nero:
+- **Più grafici** (layout singolo, 2 affiancati, 2 sovrapposti, griglia 4): ognuno con il proprio simbolo e timeframe, tutti sullo stesso orologio di replay. Il grafico attivo ha il bordo blu; cursore sincronizzato tra i grafici (opzionale). Countdown della candela sull'ultimo prezzo.
+- **Replay** (barra flottante trascinabile): play/pausa (Spazio), velocità (slider), passo (1s, 5s, 15s, 30s, 1m, 5m, 15m, 1h) con ⏭ (→), Maiusc+→ completa la barra del timeframe attivo, interruttore "pausa su fill/SL/TP". Solo in avanti.
+- **Go To**: salto a data/ora, prossima apertura 09:30 ET, +1 ora, +1 giorno. **Journal**: note di sessione e per operazione. **Order**: pannello ordini flottante.
+- Barra a sinistra con gli strumenti di disegno (trendline, semiretta, freccia, linee orizzontali/verticali, canale, Fibonacci, rettangolo, posizione long/short, testo, pennello, righello, magnete, blocco, nascondi, sincronizza cursore); elenco oggetti (☰), annulla/ripeti, screenshot, impostazioni (stile candele monocromatico/classico).
+- **Trading simulato**: Buy/Sell dal footer (quantità, SL e TP in punti) oppure ordini Market/Limit/Stop dal pannello Order; size per contratti o per % di rischio. Un conto per simbolo; SL, TP e ordini pendenti si **trascinano sul grafico** (e si possono aggiungere dopo l'apertura). Pannello inferiore (⋮⋮⋮) con posizioni/ordini, storico e Analytics (statistiche, equity curve, export CSV).
+- **Prop Firm Rules**: obiettivo di profitto, perdita massima giornaliera, drawdown massimo (anche trailing), con avviso e pausa quando un limite viene raggiunto.
+- Salvataggio automatico su server (orologio, conti, disegni, layout, journal).
+
+I **secondi sono simulati**: i dati sono a 1 minuto, quindi ogni candela viene percorsa in 60 passi (O→L→H→C se rialzista, O→H→L→C se ribassista). Open/high/low/close della candela completa restano quelli reali.
 
 ## Dati
 
-I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Ora c'è solo NQ di novembre 2025 (anche come MNQ, $2/punto). Per aggiungere un asset basta aggiungere il CSV e una riga in `assets.json`. I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET.
+I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Ora c'è solo NQ di novembre 2025 (anche come MNQ, $2/punto). Per aggiungere un asset (es. ES): `npm run import -- <file.csv|file.html> ES "E-mini S&P 500 Futures" 50` (valore del punto, tick opzionale). Accetta un CSV `time,open,high,low,close,volume` oppure un file "Replay…" HTML con `const D=[[t,o,h,l,c,v],…]`. I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET.
 
 ## Regole di simulazione
 
