@@ -27,7 +27,7 @@ function run(rows, offsetH, { name, extra = [], gz = false }) {
 }
 
 test('importa tick UTC (ora legale): minuti ricavati = minuti originali, contratto e spread filtrati', () => {
-  const rows = loadRows('NQ26_1m.csv', 1789639800, 1789639800 + 90 * 60); // 18/09/2026 09:30 ET
+  const rows = loadRows('NQ_1m.csv', 1789639800, 1789639800 + 90 * 60); // 18/09/2026 09:30 ET (ora legale)
   const { dir, r, ticks } = run(rows, 4, { name: 'Test' });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   const csv = fs.readFileSync(path.join(dir, 'TST_1m.csv'), 'utf8').trim().split('\n').slice(1).map(l => l.split(',').map(Number));
@@ -42,7 +42,9 @@ test('importa tick UTC (ora legale): minuti ricavati = minuti originali, contrat
 });
 
 test('importa tick UTC (ora solare) e file .gz', () => {
-  const rows = loadRows('NQ_1m.csv', 1762162200, 1762162200 + 30 * 60); // 03/11/2025 09:30 ET (EST, UTC-5)
+  // stesse candele spostate al 03/11/2026 09:30 ET (dopo il cambio all'ora solare: UTC-5)
+  const shift = 1793698200 - 1789639800;
+  const rows = loadRows('NQ_1m.csv', 1789639800, 1789639800 + 30 * 60).map(r => [r[0] + shift, ...r.slice(1)]);
   const { dir, r } = run(rows, 5, { name: 'Test', gz: true });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   const csv = fs.readFileSync(path.join(dir, 'TST_1m.csv'), 'utf8').trim().split('\n').slice(1).map(l => l.split(',').map(Number));

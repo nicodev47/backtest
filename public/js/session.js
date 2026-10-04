@@ -24,6 +24,11 @@ let extOrig = {}, syncing = false, ruleBreached = false;
     assets = await api('/assets');
     migrate();
     playbooks = await api('/playbooks').catch(() => []);
+    const missing = [...new Set(S.layout.panes.map(p => p.symbol))].filter(sym => !assets.some(a => a.symbol === sym));
+    if (missing.length || S.startTime < Math.max(...assets.filter(a => S.layout.panes.some(p => p.symbol === a.symbol)).map(a => a.from))) {
+      document.body.innerHTML = `<p style="padding:24px;max-width:560px">Questa sessione usava dati che non sono più disponibili${missing.length ? ' (' + esc(missing.join(', ')) + ')' : ''}. <a href="/">Torna alla dashboard</a> per eliminarla e crearne una nuova.</p>`;
+      return;
+    }
     await Promise.all([...new Set(S.layout.panes.map(p => p.symbol))].map(ensureData));
   } catch (e) {
     document.body.innerHTML = '<p style="padding:24px">Sessione non trovata o dati non disponibili. <a href="/">Torna alla dashboard</a></p>';

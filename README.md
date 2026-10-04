@@ -39,9 +39,7 @@ Le tue strategie con regole di ingresso, uscita e rischio: si collegano ai trade
 
 ## Dati
 
-I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Asset disponibili:
-- **NQ26 / MNQ26** (MNQ = $2 a punto): NQ dal 17/09/2026 al 02/10/2026, dai campioni a 1 minuto forniti. Aggregati a 5m, 30m e 1h coincidono esattamente con i campioni 5m/30m/1h forniti (OHLC e volume).
-- **NQ / MNQ**: novembre 2025 (dati del file di replay iniziale).
+I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Asset disponibile: **NQ** ($20 a punto), dal campione FirstRate Data a 1 minuto, dal 17/09/2026 al 02/10/2026 (16.200 candele). Aggregato a 5m, 30m e 1h coincide esattamente con i campioni 5m/30m/1h forniti (OHLC e volume). Le sessioni create con dati che non ci sono più vengono segnalate nella dashboard e si possono solo eliminare.
 
 I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET. Il giorno aggregato ha open/high/low identici al giornaliero ufficiale, ma close e volume possono differire (quello ufficiale usa il prezzo di settlement).
 
@@ -50,10 +48,10 @@ Per aggiungere un asset a 1 minuto (es. ES): `npm run import -- <file.csv|file.h
 ### Tick (per candele che si muovono realisticamente)
 
 ```bash
-npm run import-ticks -- --sym=NQ26 --name="E-mini Nasdaq-100" --pv=20 [--tick=0.25] [--tz=auto|ET|UTC] [--contract=auto|NQZ6] tick1.csv.gz tick2.csv.gz ...
-npm run import -- x MNQ26 "Micro E-mini Nasdaq-100" 2 0.25 reuse=NQ26_1m.csv     # stessi tick per il micro (opzionale)
+npm run import-ticks -- --sym=NQ --name="E-mini Nasdaq-100" --pv=20 [--tick=0.25] [--tz=auto|ET|UTC] [--contract=auto|NQZ6] tick1.csv.gz tick2.csv.gz ...
+npm run import -- x MNQ "Micro E-mini Nasdaq-100" 2 0.25 reuse=NQ_1m.csv     # stessi dati/tick per il micro (opzionale)
 ```
-Crea `data/ticks/NQ26/` (un file binario compatto per giorno, **non versionato**) e ricava `data/NQ26_1m.csv` dai tick, così minuti e tick coincidono. I file vanno passati in ordine cronologico; si accettano `.csv` e `.csv.gz`. Colonne riconosciute: orario (`ts_event`/`timestamp`/`time`), `price`, `size`, opzionali `symbol` e `action` (si tengono solo i trade `T`). Orari ISO con Z/offset o epoch sono istanti UTC e vengono convertiti in ET (ora legale inclusa); orari senza fuso si assumono già ET (`--tz=UTC` per cambiare). Con più contratti nel file (rollover) `--contract=auto` usa per ogni giorno il più scambiato e ignora gli spread. Nel replay i giorni di tick vengono caricati a richiesta (se non sono ancora arrivati il replay attende, non simula).
+Crea `data/ticks/NQ/` (un file binario compatto per giorno, **non versionato**) e ricava `data/NQ_1m.csv` dai tick, così minuti e tick coincidono. I file vanno passati in ordine cronologico; si accettano `.csv` e `.csv.gz`. Colonne riconosciute: orario (`ts_event`/`timestamp`/`time`), `price`, `size`, opzionali `symbol` e `action` (si tengono solo i trade `T`). Orari ISO con Z/offset o epoch sono istanti UTC e vengono convertiti in ET (ora legale inclusa); orari senza fuso si assumono già ET (`--tz=UTC` per cambiare). Con più contratti nel file (rollover) `--contract=auto` usa per ogni giorno il più scambiato e ignora gli spread. Nel replay i giorni di tick vengono caricati a richiesta (se non sono ancora arrivati il replay attende, non simula).
 
 ## Regole di simulazione
 

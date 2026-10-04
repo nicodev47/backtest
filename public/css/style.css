@@ -220,3 +220,4 @@ a.btn{color:var(--text)}a.btn.primary{color:#fff}
 .pos .partial{display:flex;gap:4px;margin-top:8px;align-items:center}.pos .partial button{flex:1;padding:4px 0}.pos .partial input{width:58px}
 .jt input[type=checkbox]{width:auto;flex:none}
 .card-actions .btn{padding:5px 10px}
+.stale{background:rgba(239,83,80,.12);color:var(--down);border-radius:6px;padding:6px 10px;font-size:12px}

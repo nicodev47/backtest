@@ -86,7 +86,18 @@ function writeSession(s) {
   fs.writeFileSync(tmp, JSON.stringify(s));
   fs.renameSync(tmp, sessPath(s.id));
 }
+// Una sessione è "obsoleta" se i suoi asset non esistono più o la partenza cade fuori dai dati disponibili.
+function isStale(s) {
+  const syms = s.symbols || [s.symbol];
+  return syms.some(sym => {
+    const a = assets.find(x => x.symbol === sym);
+    if (!a) return true;
+    const f = loadFile(a.dataFile);
+    return s.startTime < f.from || s.startTime > f.to;
+  });
+}
 const summary = s => ({
+  stale: isStale(s),
   id: s.id, name: s.name, symbol: s.symbol, symbols: s.symbols || [s.symbol], startTime: s.startTime, cursorTime: s.cursorTime,
   capital: s.capital, createdAt: s.createdAt, updatedAt: s.updatedAt, summary: s.summary || null,
 });
@@ -171,6 +182,7 @@ app.post('/api/sessions/:id/reset', (req, res) => {
 app.post('/api/sessions/:id/duplicate', (req, res) => {
   const s = validId(req.params.id) && readSession(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessione non trovata' });
+  if (isStale(s)) return res.status(409).json({ error: 'I dati di questa sessione non sono più disponibili' });
   const now = Date.now(), c = JSON.parse(JSON.stringify(s));
   c.id = crypto.randomBytes(8).toString('hex'); c.name = (s.name + ' (copia)').slice(0, 80);
   c.cursorTime = null; c.accounts = {}; delete c.account; c.runtime = {}; c.summary = null; c.createdAt = c.updatedAt = now;

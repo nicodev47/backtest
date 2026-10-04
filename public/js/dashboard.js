@@ -37,12 +37,13 @@ async function loadSessions() {
         <div><span>Win rate</span><b>${sm.winRate != null ? Math.round(sm.winRate * 100) + '%' : '–'}</b></div>
         <div><span>Equity</span><b>${money(sm.equity ?? s.capital)}</b></div>
       </div>
-      <div class="card-actions"><a class="btn primary" href="/session/${s.id}">Apri</a><button class="btn dup" title="Nuova sessione con le stesse impostazioni">Duplica</button><button class="btn rst" title="Riparte dall'inizio: azzera operazioni e journal">Riavvia</button><button class="btn danger del">Elimina</button></div>`;
+      ${s.stale ? '<div class="stale">Dati non più disponibili: questa sessione usava asset o date che non ci sono più. Puoi solo eliminarla.</div>' : ''}
+      <div class="card-actions">${s.stale ? '' : `<a class="btn primary" href="/session/${s.id}">Apri</a><button class="btn dup" title="Nuova sessione con le stesse impostazioni">Duplica</button><button class="btn rst" title="Riparte dall\'inizio: azzera operazioni e journal">Riavvia</button>`}<button class="btn danger del">Elimina</button></div>`;
     el.querySelector('b').textContent = s.name;
     el.querySelector('.tag').textContent = (s.symbols || [s.symbol]).join(' + ');
     el.querySelector('.cur').textContent = `Partenza ${fmtDT(s.startTime)} · Ora replay ${fmtDT(s.cursorTime ?? s.startTime)} ET`;
-    el.querySelector('.dup').onclick = async () => { await api('/sessions/' + s.id + '/duplicate', { method: 'POST' }); loadSessions(); };
-    el.querySelector('.rst').onclick = async () => {
+    if (!s.stale) el.querySelector('.dup').onclick = async () => { await api('/sessions/' + s.id + '/duplicate', { method: 'POST' }); loadSessions(); };
+    if (!s.stale) el.querySelector('.rst').onclick = async () => {
       if (!confirm(`Riavviare "${s.name}" dall'inizio? Operazioni, journal e disegni verranno azzerati.`)) return;
       await api('/sessions/' + s.id + '/reset', { method: 'POST' }); loadSessions();
     };
