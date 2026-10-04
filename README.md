@@ -28,7 +28,13 @@ I **secondi sono simulati**: i dati sono a 1 minuto, quindi ogni candela viene p
 
 ## Dati
 
-I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Ora c'è solo NQ di novembre 2025 (anche come MNQ, $2/punto). Per aggiungere un asset (es. ES): `npm run import -- <file.csv|file.html> ES "E-mini S&P 500 Futures" 50` (valore del punto, tick opzionale). Accetta un CSV `time,open,high,low,close,volume` oppure un file "Replay…" HTML con `const D=[[t,o,h,l,c,v],…]`. I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET.
+I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Asset disponibili:
+- **NQ26 / MNQ26** (MNQ = $2 a punto): NQ dal 17/09/2026 al 02/10/2026, dai campioni a 1 minuto forniti. Aggregati a 5m, 30m e 1h coincidono esattamente con i campioni 5m/30m/1h forniti (OHLC e volume).
+- **NQ / MNQ**: novembre 2025 (dati del file di replay iniziale).
+
+I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET. Il giorno aggregato ha open/high/low identici al giornaliero ufficiale, ma close e volume possono differire (quello ufficiale usa il prezzo di settlement).
+
+Per aggiungere un asset (es. ES): `npm run import -- <file.csv|file.html> ES "E-mini S&P 500 Futures" 50 [tick] [reuse=<file già in data/>]`. Accetta un CSV con intestazione `time` (secondi unix) oppure `timestamp` ("AAAA-MM-GG HH:MM:SS"), `open,high,low,close,volume` (altre colonne ignorate), oppure un file "Replay…" HTML con `const D=[[t,o,h,l,c,v],…]`.
 
 ## Regole di simulazione
 

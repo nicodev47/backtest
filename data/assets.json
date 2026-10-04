@@ -1,4 +1,38 @@
 [
-  { "symbol": "NQ",  "name": "E-mini Nasdaq-100 Futures",  "dataFile": "NQ_1m.csv", "pointValue": 20, "tickSize": 0.25, "currency": "USD", "type": "Futures" },
-  { "symbol": "MNQ", "name": "Micro E-mini Nasdaq-100 Futures", "dataFile": "NQ_1m.csv", "pointValue": 2,  "tickSize": 0.25, "currency": "USD", "type": "Futures" }
+  {
+    "symbol": "NQ26",
+    "name": "E-mini Nasdaq-100 Futures (set-ott 2026)",
+    "dataFile": "NQ26_1m.csv",
+    "pointValue": 20,
+    "tickSize": 0.25,
+    "currency": "USD",
+    "type": "Futures"
+  },
+  {
+    "symbol": "MNQ26",
+    "name": "Micro E-mini Nasdaq-100 Futures (set-ott 2026)",
+    "dataFile": "NQ26_1m.csv",
+    "pointValue": 2,
+    "tickSize": 0.25,
+    "currency": "USD",
+    "type": "Futures"
+  },
+  {
+    "symbol": "NQ",
+    "name": "E-mini Nasdaq-100 Futures (nov 2025)",
+    "dataFile": "NQ_1m.csv",
+    "pointValue": 20,
+    "tickSize": 0.25,
+    "currency": "USD",
+    "type": "Futures"
+  },
+  {
+    "symbol": "MNQ",
+    "name": "Micro E-mini Nasdaq-100 Futures (nov 2025)",
+    "dataFile": "NQ_1m.csv",
+    "pointValue": 2,
+    "tickSize": 0.25,
+    "currency": "USD",
+    "type": "Futures"
+  }
 ]
