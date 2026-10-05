@@ -39,7 +39,7 @@ Le tue strategie con regole di ingresso, uscita e rischio: si collegano ai trade
 
 ## Dati
 
-I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Asset disponibile: **NQ** ($20 a punto), dal campione FirstRate Data a 1 minuto, dal 17/09/2026 al 02/10/2026 (16.200 candele). Aggregato a 5m, 30m e 1h coincide esattamente con i campioni 5m/30m/1h forniti (OHLC e volume). Le sessioni create con dati che non ci sono più vengono segnalate nella dashboard e si possono solo eliminare.
+I dati stanno in `data/` (CSV `time,open,high,low,close,volume`, candele a 1 minuto, orario ET trattato come UTC) e sono registrati in `data/assets.json`. Asset disponibili: **NQ** ($20 a punto) e **MNQ** (micro, $2 a punto, stessi prezzi di NQ), dal campione FirstRate Data a 1 minuto, dal 17/09/2026 al 02/10/2026 (16.200 candele). Aggregato a 5m, 30m e 1h coincide esattamente con i campioni 5m/30m/1h forniti (OHLC e volume). Le sessioni create con dati che non ci sono più vengono segnalate nella dashboard e si possono solo eliminare.
 
 I timeframe superiori sono aggregati dai dati a 1 minuto; 4h e 1D si ancorano all'apertura CME delle 18:00 ET. Il giorno aggregato ha open/high/low identici al giornaliero ufficiale, ma close e volume possono differire (quello ufficiale usa il prezzo di settlement).
 
